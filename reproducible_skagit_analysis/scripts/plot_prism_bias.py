@@ -121,7 +121,6 @@ def plot_prism_bias():
             ax.get_legend().remove()
 
     plt.suptitle("Cross-Product Precipitation Bias Analysis: 1981-2020 vs 2014-Present\n(Product - PRISM 3-Day Total)", fontsize=22, weight="bold", y=1.02)
-    fig.text(0.5, 0.965, "HRRR: basin integration is still under review; bins with N<3 are shown as points.", ha="center", fontsize=10, color="dimgray")
 
     plt.tight_layout(rect=[0, 0, 1, 0.97])
     plt.savefig(OUT_IMG, dpi=300, bbox_inches="tight")
