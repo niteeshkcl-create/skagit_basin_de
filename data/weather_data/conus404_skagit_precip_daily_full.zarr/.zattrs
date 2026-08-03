@@ -1,0 +1,6 @@
+{
+  "source": "intake:conus404-catalog:conus404-daily-osn",
+  "precip_var": "PREC_ACC_NC",
+  "years": "1981-2024",
+  "note": "precip_daily: daily sum on native grid (mm); basin_mask: True in Skagit"
+}
