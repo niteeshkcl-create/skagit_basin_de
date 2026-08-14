@@ -31,6 +31,7 @@ def preprocess_products():
 
     # Compute bias columns.
     df["PNNL"] = df["pnnl_3d_tot"] - df["prism_3d_tot"]
+    df["Daymet"] = df["daymet_3d_tot"] - df["prism_3d_tot"]
     df["CONUS404"] = df["conus_3d_tot"] - df["prism_3d_tot"]
     df["UCLA"] = df["ucla_3d_tot"] - df["prism_3d_tot"]
     df["GridMET"] = df["gridmet_3d_tot"] - df["prism_3d_tot"]
