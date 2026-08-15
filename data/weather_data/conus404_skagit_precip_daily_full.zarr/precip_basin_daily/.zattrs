@@ -1,0 +1,11 @@
+{
+  "description": "ACCUMULATED GRID SCALE  PRECIPITATION OVER prec_acc_dt PERIODS OF TIME",
+  "grid_mapping": "crs",
+  "integration_length": "24-hour accumulation",
+  "long_name": "Accumulated grid scale precipitation",
+  "units": "mm",
+  "standard_name": "region",
+  "_ARRAY_DIMENSIONS": [
+    "time"
+  ]
+}

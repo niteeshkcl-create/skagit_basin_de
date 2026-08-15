@@ -45,6 +45,12 @@ If you prefer to use conda, there is also a script to install necessary packages
 3. Enter the environment using `conda activate skagit-met`
 4. If you're done, don't forget to `conda deactivate`.
 
+## Reproducible Skagit Precipitation Analysis
+
+- **multi_product_bulk_bias/**: Multi-product precipitation bias pipeline and grouped boxplots.
+- **cumulative_precipitation_plot/**: Cumulative precipitation temporal plots for AR and Non-AR events.
+- **spatial_plots/**: Spatial grid plots for AR and Non-AR events.
+
 ## Additional Resources
 * https://rapidrefresh.noaa.gov/Diag-vars-NOAA-TechMemo.pdf
 * https://rapidrefresh.noaa.gov/hrrr/HRRR/Welcome.cgi?dsKey=hrrr_ncep_jet

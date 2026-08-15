@@ -1,0 +1,8 @@
+{
+  "standard_name": "region",
+  "coordinates": "lat lon",
+  "_ARRAY_DIMENSIONS": [
+    "y",
+    "x"
+  ]
+}

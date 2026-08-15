@@ -1,0 +1,7 @@
+{
+    "_ARRAY_DIMENSIONS": [
+        "time",
+        "site"
+    ],
+    "coordinates": "elevation_ft lat lon site_name"
+}

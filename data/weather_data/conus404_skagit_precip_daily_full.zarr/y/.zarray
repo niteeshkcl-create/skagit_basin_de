@@ -1,0 +1,18 @@
+{
+  "shape": [
+    1015
+  ],
+  "chunks": [
+    1015
+  ],
+  "dtype": "<f8",
+  "fill_value": "NaN",
+  "order": "C",
+  "filters": null,
+  "dimension_separator": ".",
+  "compressor": {
+    "id": "zstd",
+    "level": 9
+  },
+  "zarr_format": 2
+}
