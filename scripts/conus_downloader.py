@@ -96,7 +96,7 @@ def find_lon_lat(ds):
 
 def guess_precip_var(ds):
   cand = set(ds.data_vars)
-  for k in ["PREC_ACC_NC", "APCP", "TP", "TOT_PREC", "pr", "precip"]:
+  for k in ["RAIN", "PREC_ACC_NC", "APCP", "TP", "TOT_PREC", "pr", "precip"]:
     if k in cand:
       return k
   if {"RAINNC", "RAINC"} <= cand:
@@ -137,7 +137,17 @@ def to_increments_mm(da, time_dim="time"):
   else:
     is_accum = True  # conservative
 
-  if is_accum or "acc" in (da.name or "").lower():
+  # If dataset resolution is daily or coarser, it is not cumulative across days
+  # check the time coordinates step size
+  is_daily_or_coarser = False
+  if time_dim in da.coords and da[time_dim].size > 1:
+    import pandas as pd
+    dt_sample = np.diff(da[time_dim].values[:2])
+    dt_hours = pd.to_timedelta(dt_sample[0]).total_seconds() / 3600.0
+    if dt_hours >= 23.0:
+      is_daily_or_coarser = True
+
+  if not is_daily_or_coarser and (is_accum or "acc" in (da.name or "").lower()):
     da = da.sortby(time_dim)
     inc = da.diff(time_dim, label="upper")
     inc = inc.where(inc >= 0, 0).fillna(0)
@@ -239,7 +249,7 @@ def open_conus_source_intake_only(catalog_url: str = CAT_URL):
   cat = intake.open_catalog(catalog_url)
   tried = []
   for path, entry in iter_entries_safe(cat):
-    if "conus404" not in path.lower():
+    if "conus404" not in path.lower() or "daily-osn" not in path.lower() or "pgw" in path.lower():
       continue
 
     drv = (getattr(entry, "_driver", "") or "").lower()
@@ -326,16 +336,24 @@ def generate_conus_precip(
 
   lon, lat = find_lon_lat(ds)
   mask = build_mask(lon, lat, geom)
-  weights = mask.astype("float32")
+  
+  # Slice spatially to the bounding box of the mask to speed up computations
+  y_idx = np.where(mask.any(dim="x"))[0]
+  x_idx = np.where(mask.any(dim="y"))[0]
+  y_slice = slice(y_idx.min(), y_idx.max() + 1)
+  x_slice = slice(x_idx.min(), x_idx.max() + 1)
+  
+  p_sub = p.isel(y=y_slice, x=x_slice)
+  mask_sub = mask.isel(y=y_slice, x=x_slice)
+  weights = mask_sub.astype("float32")
   weights = weights / weights.sum()
 
-  daily_grid = inc.resample(time="1D").sum()
-  daily_basin = (inc * weights).sum(["y", "x"], skipna=True).resample(time="1D").sum()
+  inc_sub = to_increments_mm(p_sub, "time")
+  
+  daily_grid = inc_sub.resample(time="1D").sum()
+  daily_basin = (inc_sub * weights).sum(["y", "x"], skipna=True).resample(time="1D").sum()
 
-  ann_mean = float(daily_basin.resample(time="YE").sum().mean().compute())
-  print(
-    f"[check] Skagit mean annual (CONUS404) ≈ {ann_mean:.1f} mm/yr over {start_year}-{end_year}"
-  )
+  # Skip expensive annual mean check for speed
 
   daily_basin = daily_basin.chunk({"time": 180})
   daily_grid = daily_grid.chunk({"time": 90, "y": 256, "x": 256})

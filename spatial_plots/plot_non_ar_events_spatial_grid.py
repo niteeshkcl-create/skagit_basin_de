@@ -21,12 +21,14 @@ from scipy.interpolate import griddata
 warnings.filterwarnings('ignore')
 
 # --- Configuration & Paths ---
-BASE_DIR = "/data0/nksp2/skagit/skagit_2/skagit-met"
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
 BOUNDARY_PATH = os.path.join(BASE_DIR, "data/GIS/SkagitBoundary.json")
 SUBBASIN_PATH  = os.path.join(BASE_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
-OUT_DIR = os.path.join("/data0/hernanqd/plots_code/spatial_plots/plots/plot_non_ar_events_spatial_grid")
+OUT_DIR = os.path.join(BASE_DIR, "spatial_plots/plots")
+REFINED_DIR = os.path.join(BASE_DIR, "refined_plots")
 os.makedirs(OUT_DIR, exist_ok=True)
+os.makedirs(REFINED_DIR, exist_ok=True)
 
 # --- Non-AR Event windows (independent high streamflow / extreme precip) ---
 NON_AR_EVENTS = [
@@ -37,7 +39,8 @@ NON_AR_EVENTS = [
     {"label": "December_2023_NonAR", "start": "2023-12-03", "end": "2023-12-09", "row_label": "Dec 3–9, 2023\n(Non-AR)"},
 ]
 
-PRODUCTS = ['PRISM', 'Daymet', 'ORNL (Daymet)', 'PNNL', 'CONUS404', 'UCLA', 'GridMET', 'HRRR']
+# Long-term datasets (excluding HRRR per manuscript guidance)
+PRODUCTS = ['PRISM', 'Daymet', 'ORNL (Daymet)', 'PNNL', 'CONUS404', 'UCLA', 'GridMET']
 
 # --- Load static coordinates once ---
 print("Loading static grid coordinates...")
@@ -459,9 +462,12 @@ def main():
     )
 
     out_png = os.path.join(OUT_DIR, "non_ar_events_spatial_comparison.png")
+    refined_png = os.path.join(REFINED_DIR, "non_ar_events_spatial_comparison.png")
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
+    plt.savefig(refined_png, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"\nSaved combined comparison figure to: {out_png}")
+    print(f"Saved refined comparison figure to: {refined_png}")
 
 
 if __name__ == "__main__":

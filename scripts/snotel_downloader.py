@@ -146,6 +146,9 @@ def createDataset(
 ) -> xr.Dataset:
   try:
     snotel_df = pd.concat(dataframes)
+    if snotel_df.empty:
+      print("No variable data found for the given stations on given dates. Exiting...")
+      exit(0)
   except ValueError:
     print("No variable data found for the given stations on given dates. Exiting...")
     exit(0)
@@ -178,10 +181,11 @@ def createDataset(
   snotel_df = snotel_df[snotel_df["site"].isin(snotel_xr.site.values)]
 
   # Assign new coordinates to the xarray dataset
-  # Ensure unique 'site' values
   snotel_df = snotel_df.drop_duplicates(subset="site")
-  # Same for site_name
-  snotel_df = snotel_df.drop_duplicates(subset="site_name")
+  print(f"Sites in snotel_xr: {snotel_xr.site.values}")
+  print(f"Sites in snotel_df: {snotel_df['site'].values}")
+  print(f"Length of snotel_xr site dim: {len(snotel_xr.site)}")
+  print(f"Length of snotel_df: {len(snotel_df)}")
 
   snotel_xr = snotel_xr.assign_coords(
     lat=("site", snotel_df["lat"].values),
@@ -218,7 +222,7 @@ def getDataByFrequency(
       df["site_name"] = point.name
     return df
   except requests.exceptions.HTTPError:
-    print(f"Error downloading data for {point.station_id}. Skipping...")
+    print(f"Error downloading data for {point.id}. Skipping...")
     return pd.DataFrame()
 
 
