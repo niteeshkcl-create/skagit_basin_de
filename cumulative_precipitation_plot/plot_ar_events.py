@@ -19,15 +19,28 @@ def plot_ar_events():
     # Get unique AR event dates
     unique_events = ar_data['event_date'].unique()
 
-    # Create plots for top 8 events
-    top_events = unique_events[:8]
+    # Create plots for top 7 events, excluding 2025-12-11
+    top_events = unique_events[:7]
+    top_events = [e for e in top_events if e != '2025-12-11'] #we don't have enough precip data for this event
 
     print(f"Creating plot for top {len(top_events)} AR events...")
 
-    fig, axes = plt.subplots(4, 2, figsize=(14, 14))
+    # Calculate max cumulative precipitation across all AR events for consistent y-axis
+    products = ['prism', 'pnnl', 'daymet', 'conus', 'ucla', 'gridmet']
+    max_cumsum = 0
+    for event_date in unique_events:
+        event_data = ar_data[ar_data['event_date'] == event_date].copy()
+        event_data['window_date'] = pd.to_datetime(event_data['window_date'])
+        event_data = event_data.sort_values('window_date')
+        for product in products:
+            if product in event_data.columns:
+                cumsum = event_data[product].cumsum()
+                max_cumsum = max(max_cumsum, cumsum.max())
+    ylim_max = max_cumsum * 1.05
+
+    fig, axes = plt.subplots(3, 2, figsize=(14, 10))
     axes = axes.flatten()
 
-    products = ['prism', 'pnnl', 'daymet', 'conus', 'ucla', 'gridmet']
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     markers = ['o', 's', '^', 'D', 'v', 'p']
 
@@ -55,6 +68,7 @@ def plot_ar_events():
         ax.set_title(f'Event: {event_date}{ar_label}', fontsize=12, fontweight='bold')
         ax.set_xlabel('Date', fontsize=10)
         ax.set_ylabel('Cumulative Precipitation (mm)', fontsize=10)
+        ax.set_ylim(0, ylim_max)
         ax.legend(loc='best', fontsize=9, ncol=2)
         ax.grid(True, alpha=0.3)
         ax.tick_params(axis='x', rotation=45)

@@ -9,7 +9,7 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "cumulative_precipitation_plot")
 
 
 def plot_non_ar_events():
-    """Plot cumulative precipitation for top 8 non-AR events"""
+    """Plot cumulative precipitation for top 6 non-AR events"""
     print("Loading precipitation data...")
     data_df = pd.read_csv(DATA_CSV)
 
@@ -19,15 +19,27 @@ def plot_non_ar_events():
     # Get unique non-AR event dates
     unique_events = non_ar_data['event_date'].unique()
 
-    # Create plots for top 8 events
-    top_events = unique_events[:8]
+    # Create plots for top 6 events
+    top_events = unique_events[:6]
 
     print(f"Creating plot for top {len(top_events)} non-AR events...")
 
-    fig, axes = plt.subplots(4, 2, figsize=(14, 14))
+    # Calculate max cumulative precipitation across all non-AR events for consistent y-axis
+    products = ['prism', 'pnnl', 'daymet', 'conus', 'ucla', 'gridmet']
+    max_cumsum = 0
+    for event_date in unique_events:
+        event_data = non_ar_data[non_ar_data['event_date'] == event_date].copy()
+        event_data['window_date'] = pd.to_datetime(event_data['window_date'])
+        event_data = event_data.sort_values('window_date')
+        for product in products:
+            if product in event_data.columns:
+                cumsum = event_data[product].cumsum()
+                max_cumsum = max(max_cumsum, cumsum.max())
+    ylim_max = max_cumsum * 1.05
+
+    fig, axes = plt.subplots(3, 2, figsize=(14, 10))
     axes = axes.flatten()
 
-    products = ['prism', 'pnnl', 'daymet', 'conus', 'ucla', 'gridmet']
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
     markers = ['o', 's', '^', 'D', 'v', 'p']
 
@@ -51,11 +63,12 @@ def plot_non_ar_events():
         ax.set_title(f'Event: {event_date}', fontsize=12, fontweight='bold')
         ax.set_xlabel('Date', fontsize=10)
         ax.set_ylabel('Cumulative Precipitation (mm)', fontsize=10)
+        ax.set_ylim(0, ylim_max)
         ax.legend(loc='best', fontsize=9, ncol=2)
         ax.grid(True, alpha=0.3)
         ax.tick_params(axis='x', rotation=45)
 
-    plt.suptitle('Cumulative Precipitation for Top 8 Non-AR Events', fontsize=16, fontweight='bold')
+    plt.suptitle('Cumulative Precipitation for Top 6 Non-AR Events', fontsize=16, fontweight='bold')
 
     plt.tight_layout()
 

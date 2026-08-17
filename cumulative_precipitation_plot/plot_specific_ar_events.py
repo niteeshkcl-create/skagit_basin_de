@@ -1,17 +1,27 @@
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
 import xarray as xr
 import numpy as np
 import geopandas as gpd
 import regionmask
-from pathlib import Path
 
 # Configuration
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
 BASE_DIR = "/data0/hernanqd/plots_code/skagit_basin_de"
 HUC8_GEO = os.path.join(BASE_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
 EVENTS_CSV = os.path.join(BASE_DIR, "multi_product_bulk_bias/outputs/4_clean_bias_table.csv")
-OUTPUT_CSV = os.path.join(BASE_DIR, "cumulative_precipitation_plot/event_precipitation_data.csv")
+OUTPUT_DIR = os.path.join(BASE_DIR, "cumulative_precipitation_plot")
+
+# Specific event dates to plot
+SPECIFIC_DATES = [
+    '2003-10-29',
+    '2006-11-04',
+    '2021-11-15',
+    '1990-11-25',
+    '2017-11-23',
+    '2010-12-13',
+]
 
 
 def load_regions():
@@ -293,47 +303,79 @@ def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daym
     return pd.DataFrame(results).T
 
 
-def main():
+def plot_specific_ar_events():
+    """Extract and plot specific AR events"""
     print("Loading events data...")
     events_df = pd.read_csv(EVENTS_CSV)
     events_df['date'] = pd.to_datetime(events_df['date'])
 
-    print("Selecting top 40 AR events and top 40 non-AR events...")
-    ar_events = events_df[events_df['ar_scale'] != 0].copy()
-    non_ar_events = events_df[events_df['ar_scale'] == 0].copy()
+    # Convert specific dates to datetime
+    event_dates = [pd.to_datetime(d) for d in SPECIFIC_DATES]
 
-    ar_events_sorted = ar_events.dropna(subset=['prism_3d_tot']).sort_values('prism_3d_tot', ascending=False)
-    non_ar_events_sorted = non_ar_events.dropna(subset=['prism_3d_tot']).sort_values('prism_3d_tot', ascending=False)
+    print(f"Extracting and plotting {len(event_dates)} specific AR events...")
 
-    top_20_ar = ar_events_sorted.head(40)['date'].values
-    top_20_non_ar = non_ar_events_sorted.head(40)['date'].values
+    # Extract data for all events and calculate max cumulative precipitation
+    products = ['prism', 'pnnl', 'daymet', 'conus', 'ucla', 'gridmet']
+    max_cumsum = 0
+    all_event_data = {}
 
-    all_events = list(top_20_ar) + list(top_20_non_ar)
+    for event_date in event_dates:
+        print(f"Extracting data for {event_date.strftime('%Y-%m-%d')}...")
+        window_df = extract_event_window(event_date, products_to_extract=products)
+        all_event_data[event_date] = window_df
 
-    print(f"Extracting 8-day precipitation windows for {len(all_events)} events...")
-    print(f"AR events: {len(top_20_ar)}, Non-AR events: {len(top_20_non_ar)}")
+        for product in products:
+            if product in window_df.columns:
+                cumsum = window_df[product].cumsum()
+                max_cumsum = max(max_cumsum, cumsum.max())
 
-    all_results = []
-    for i, event_date in enumerate(all_events):
-        event_date = pd.to_datetime(event_date)
-        event_date_str = event_date.strftime('%Y-%m-%d')
-        print(f"[{i+1}/{len(all_events)}] Extracting data for {event_date_str}...")
+    ylim_max = max_cumsum * 1.05
 
-        window_df = extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daymet', 'conus', 'ucla', 'gridmet'])
+    # Create plots
+    fig, axes = plt.subplots(3, 2, figsize=(14, 10))
+    axes = axes.flatten()
 
-        ar_scale = events_df[events_df['date'] == event_date]['ar_scale'].values
-        ar_scale_val = ar_scale[0] if len(ar_scale) > 0 else None
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
+    markers = ['o', 's', '^', 'D', 'v', 'p']
 
-        for date_str, row_data in window_df.iterrows():
-            result_row = {'event_date': event_date_str, 'window_date': date_str, 'ar_scale': ar_scale_val}
-            result_row.update(row_data.to_dict())
-            all_results.append(result_row)
+    for idx, event_date in enumerate(event_dates):
+        ax = axes[idx]
 
-    print("Saving results to CSV...")
-    results_df = pd.DataFrame(all_results)
-    results_df.to_csv(OUTPUT_CSV, index=False)
-    print(f"Data saved to: {OUTPUT_CSV}")
+        # Get data for this event
+        event_data = all_event_data[event_date].copy()
+        event_data.index = pd.to_datetime(event_data.index)
+        event_data = event_data.sort_index()
+
+        # Get AR scale and discharge
+        event_row = events_df[events_df['date'] == event_date]
+        ar_scale = event_row['ar_scale'].values[0] if len(event_row) > 0 else None
+        discharge = event_row['discharge_cfs'].values[0] if len(event_row) > 0 else None
+
+        # Plot each product
+        for prod_idx, product in enumerate(products):
+            if product in event_data.columns:
+                cumsum = event_data[product].cumsum()
+                ax.plot(cumsum.index, cumsum, label=product.upper(),
+                       marker=markers[prod_idx], linewidth=2, markersize=5,
+                       color=colors[prod_idx], alpha=0.8)
+
+        ar_label = f'(AR = {ar_scale} | Discharge = {discharge:.0f} cfs)' if ar_scale is not None else ''
+        ax.set_title(f'Event: {event_date.strftime("%Y-%m-%d")} {ar_label}', fontsize=12, fontweight='bold')
+        ax.set_xlabel('Date', fontsize=10)
+        ax.set_ylabel('Cumulative Precipitation (mm)', fontsize=10)
+        ax.set_ylim(0, ylim_max)
+        ax.legend(loc='best', fontsize=9, ncol=2)
+        ax.grid(True, alpha=0.3)
+        ax.tick_params(axis='x', rotation=45)
+
+    plt.suptitle('Cumulative Precipitation for Specific AR Events', fontsize=16, fontweight='bold')
+    plt.tight_layout()
+
+    output_path = os.path.join(OUTPUT_DIR, 'specific_ar_events_cumulative_precipitation.png')
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"Plot saved to: {output_path}")
+    plt.show()
 
 
 if __name__ == "__main__":
-    main()
+    plot_specific_ar_events()

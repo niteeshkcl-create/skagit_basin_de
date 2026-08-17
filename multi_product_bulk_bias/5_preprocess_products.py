@@ -37,7 +37,15 @@ def preprocess_products():
     df["GridMET"] = df["gridmet_3d_tot"] - df["prism_3d_tot"]
     df["HRRR"] = df["hrrr_3d_tot"] - df["prism_3d_tot"]
 
-    # Save the prepared table.
+    # Compute percent bias columns (relative to PRISM).
+    df["PNNL_%"] = (df["pnnl_3d_tot"] - df["prism_3d_tot"]) / df["prism_3d_tot"] * 100
+    df["Daymet_%"] = (df["daymet_3d_tot"] - df["prism_3d_tot"]) / df["prism_3d_tot"] * 100
+    df["CONUS404_%"] = (df["conus_3d_tot"] - df["prism_3d_tot"]) / df["prism_3d_tot"] * 100
+    df["UCLA_%"] = (df["ucla_3d_tot"] - df["prism_3d_tot"]) / df["prism_3d_tot"] * 100
+    df["GridMET_%"] = (df["gridmet_3d_tot"] - df["prism_3d_tot"]) / df["prism_3d_tot"] * 100
+    df["HRRR_%"] = (df["hrrr_3d_tot"] - df["prism_3d_tot"]) / df["prism_3d_tot"] * 100
+
+    # Save the prepared table.he
     os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
     df.to_csv(OUTPUT_CSV, index=False)
     print(f"Saved prepared table to {OUTPUT_CSV}")
