@@ -1,12 +1,11 @@
 """
-plot_ar_events_biases_grid.py
-------------------------------
+plot_ar_events_biases_grid_daymet.py
+-------------------------------------
 Generates a single 5 rows x 7 columns grid of spatial multi-product precipitation bias maps,
 where each row corresponds to one of the 5 AR events and each column is a dataset's bias
-relative to PRISM (Product - PRISM).
-This matches the layout of `may 23/spatial_seasonal_biases.png` but for the AR events.
+relative to Daymet (Product - Daymet).
 
-Output: jun 8/ar_events_biases_comparison.png
+Output: jun 8/ar_events_biases_comparison_daymet.png
 """
 
 import os
@@ -28,7 +27,7 @@ BASE_DIR = "/data0/nksp2/skagit/skagit_2/skagit-met"
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
 BOUNDARY_PATH = os.path.join(BASE_DIR, "data/GIS/SkagitBoundary.json")
 SUBBASIN_PATH  = os.path.join(BASE_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
-OUT_DIR = os.path.join("/data0/hernanqd/plots_code/skagit_basin_de/spatial_plots/plots/plot_ar_events_biases_grid")
+OUT_DIR = os.path.join("/data0/hernanqd/plots_code/skagit_basin_de/spatial_plots/plots/plot_ar_events_biases_grid_daymet")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # --- AR Event windows (exact dates from cumulative precipitation plot) ---
@@ -42,23 +41,22 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 AR_EVENTS = [
     {"label": "November_1990_AR5",   "start": "1990-11-23", "end": "1990-11-30", "row_label": "Nov 23–30, 1990\n(AR5)"},
+    {"label": "November_2024_AR5",  "start": "2024-11-22", "end": "2024-11-29", "row_label": "Nov 22–29, 2024\n(AR5)"},
+    {"label": "November_2021_AR4",   "start": "2021-11-13", "end": "2021-11-20", "row_label": "Nov 13–20, 2021\n(AR4)"},
     {"label": "December_2010_AR3",  "start": "2010-12-11", "end": "2010-12-18", "row_label": "Dec 11–18, 2010\n(AR3)"},
     {"label": "January_1984_AR4",  "start": "1984-01-03", "end": "1984-01-10", "row_label": "Jan 3–10, 1984\n(AR4)"},
-    {"label": "November_2017_AR4",  "start": "2017-11-21", "end": "2017-11-28", "row_label": "Nov 21–28, 2017\n(AR4)"},
-    {"label": "November_1999_AR3",  "start": "1999-11-11", "end": "1999-11-18", "row_label": "Nov 11–18, 1999\n(AR3)"},
-    {"label": "January_2011_AR2",  "start": "2011-01-15", "end": "2011-01-22", "row_label": "Jan 15–22, 2011\n(AR2)"}
 ]
 
-PRODUCTS = ['PRISM', 'Daymet',  'PNNL', 'CONUS404', 'UCLA', 'GridMET'] #'ORNL (Daymet)', 'HRRR'
-BIAS_PRODUCTS = ['Daymet', 'PNNL', 'CONUS404', 'UCLA', 'GridMET']
+PRODUCTS = ['PRISM', 'Daymet', 'ORNL (Daymet)', 'PNNL', 'CONUS404', 'UCLA', 'GridMET', 'HRRR']
+BIAS_PRODUCTS = ['PRISM', 'ORNL (Daymet)', 'PNNL', 'CONUS404', 'UCLA', 'GridMET', 'HRRR']
 BIAS_LABELS = {
-    'Daymet': 'Daymet - PRISM',
-    # 'ORNL (Daymet)': 'ORNL - PRISM',
-    'PNNL': 'PNNL - PRISM',
-    'CONUS404': 'CONUS404 - PRISM',
-    'UCLA': 'UCLA - PRISM',
-    'GridMET': 'GridMET - PRISM',
-    # 'HRRR': 'HRRR - PRISM'
+    'PRISM': 'PRISM - Daymet',
+    'ORNL (Daymet)': 'ORNL - Daymet',
+    'PNNL': 'PNNL - Daymet',
+    'CONUS404': 'CONUS404 - Daymet',
+    'UCLA': 'UCLA - Daymet',
+    'GridMET': 'GridMET - Daymet',
+    'HRRR': 'HRRR - Daymet'
 }
 
 # --- Load static coordinates once ---
@@ -382,15 +380,15 @@ def main():
             print(f"  Regridding {prod} for {event['label']}...")
             rg[prod] = regrid_to_6km(grids[prod], mask_2d)
             
-        # Compute biases: Product - PRISM
+        # Compute biases: Product - Daymet
         event_regridded_biases[event['label']] = {}
-        prism_grid = rg['PRISM']
+        daymet_grid = rg['Daymet']
         
         for prod in BIAS_PRODUCTS:
             prod_grid = rg[prod]
-            if prod_grid is not None and prism_grid is not None:
+            if prod_grid is not None and daymet_grid is not None:
                 # Both must be valid to compute bias
-                bias_grid = prod_grid - prism_grid
+                bias_grid = prod_grid - daymet_grid
                 event_regridded_biases[event['label']][prod] = bias_grid
             else:
                 event_regridded_biases[event['label']][prod] = None
@@ -424,7 +422,7 @@ def main():
 
     fig, axes = plt.subplots(
         len(AR_EVENTS), len(BIAS_PRODUCTS),
-        figsize=(15, 17.5),
+        figsize=(23, 17.5),
         subplot_kw={"projection": ccrs.PlateCarree()},
         facecolor='#ffffff'
     )
@@ -444,7 +442,7 @@ def main():
                     shading='auto'
                 )
             else:
-                # Grey placeholder if product missing (e.g. HRRR pre-2014)
+                # Grey placeholder if product missing
                 ax.set_facecolor('#dddddd')
                 ax.text(0.5, 0.5, 'N/A', transform=ax.transAxes,
                         ha='center', va='center', fontsize=12, color='#555555')
@@ -475,7 +473,7 @@ def main():
     if im is not None:
         cbar_ax = fig.add_axes([0.30, 0.05, 0.40, 0.02])
         cbar = fig.colorbar(im, cax=cbar_ax, orientation='horizontal',
-                            label="Precipitation Bias relative to PRISM (Product - PRISM, mm/day)")
+                            label="Precipitation Bias relative to Daymet (Product - Daymet, mm/day)")
         cbar.ax.tick_params(labelsize=13)
 
     plt.subplots_adjust(left=0.08, right=0.98, top=0.88, bottom=0.10, wspace=0.05, hspace=0.08)
@@ -483,11 +481,11 @@ def main():
     # Overall title
     plt.suptitle(
         "Spatial Distribution of Precipitation Biases during Atmospheric River Events\n"
-        "Product minus PRISM Baseline (Daily Average Precipitation Bias)",
+        "Product minus Daymet Baseline (Daily Average Precipitation Bias)",
         fontsize=22, fontweight='bold', y=0.96
     )
 
-    out_png = os.path.join(OUT_DIR, "ar_events_biases_comparison.png")
+    out_png = os.path.join(OUT_DIR, "ar_events_biases_comparison_daymet.png")
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"\nSaved combined comparison figure to: {out_png}")

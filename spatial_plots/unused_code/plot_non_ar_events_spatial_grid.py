@@ -1,21 +1,18 @@
 """
-plot_ar_events_biases_grid.py
+plot_non_ar_events_spatial_grid.py
 ------------------------------
-Generates a single 5 rows x 7 columns grid of spatial multi-product precipitation bias maps,
-where each row corresponds to one of the 5 AR events and each column is a dataset's bias
-relative to PRISM (Product - PRISM).
-This matches the layout of `may 23/spatial_seasonal_biases.png` but for the AR events.
+Generates a single 5 rows x 8 columns grid of spatial multi-product precipitation maps,
+where each row corresponds to one of the 5 non-AR extreme events and each column is a dataset.
 
-Output: jun 8/ar_events_biases_comparison.png
+Output: jun 8/non_ar_events_spatial_comparison.png
 """
 
 import os
 import numpy as np
 import xarray as xr
-import pandas as pd
 import geopandas as gpd
+import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import warnings
@@ -28,38 +25,19 @@ BASE_DIR = "/data0/nksp2/skagit/skagit_2/skagit-met"
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
 BOUNDARY_PATH = os.path.join(BASE_DIR, "data/GIS/SkagitBoundary.json")
 SUBBASIN_PATH  = os.path.join(BASE_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
-OUT_DIR = os.path.join("/data0/hernanqd/plots_code/skagit_basin_de/spatial_plots/plots/plot_ar_events_biases_grid")
+OUT_DIR = os.path.join("/data0/hernanqd/plots_code/spatial_plots/plots/plot_non_ar_events_spatial_grid")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# --- AR Event windows (exact dates from cumulative precipitation plot) ---
-# AR_EVENTS = [
-#     {"label": "October_2003_AR5",   "start": "2003-10-18", "end": "2003-10-24", "row_label": "Oct 18–24, 2003\n(AR5)"},
-#     {"label": "November_2006_AR4",  "start": "2006-11-04", "end": "2006-11-10", "row_label": "Nov 4–10, 2006\n(AR4)"},
-#     {"label": "October_2016_AR3",   "start": "2016-10-30", "end": "2016-11-05", "row_label": "Oct 30–Nov 5, 2016\n(AR3)"},
-#     {"label": "December_2018_AR2",  "start": "2018-12-15", "end": "2018-12-21", "row_label": "Dec 15–21, 2018\n(AR2)"},
-#     {"label": "November_2021_AR5",  "start": "2021-11-10", "end": "2021-11-17", "row_label": "Nov 10–17, 2021\n(AR5)"},
-# ]
-
-AR_EVENTS = [
-    {"label": "November_1990_AR5",   "start": "1990-11-23", "end": "1990-11-30", "row_label": "Nov 23–30, 1990\n(AR5)"},
-    {"label": "December_2010_AR3",  "start": "2010-12-11", "end": "2010-12-18", "row_label": "Dec 11–18, 2010\n(AR3)"},
-    {"label": "January_1984_AR4",  "start": "1984-01-03", "end": "1984-01-10", "row_label": "Jan 3–10, 1984\n(AR4)"},
-    {"label": "November_2017_AR4",  "start": "2017-11-21", "end": "2017-11-28", "row_label": "Nov 21–28, 2017\n(AR4)"},
-    {"label": "November_1999_AR3",  "start": "1999-11-11", "end": "1999-11-18", "row_label": "Nov 11–18, 1999\n(AR3)"},
-    {"label": "January_2011_AR2",  "start": "2011-01-15", "end": "2011-01-22", "row_label": "Jan 15–22, 2011\n(AR2)"}
+# --- Non-AR Event windows (independent high streamflow / extreme precip) ---
+NON_AR_EVENTS = [
+    {"label": "December_1989_NonAR", "start": "1989-12-03", "end": "1989-12-09", "row_label": "Dec 3–9, 1989\n(Non-AR)"},
+    {"label": "November_1995_NonAR", "start": "1995-11-06", "end": "1995-11-12", "row_label": "Nov 6–12, 1995\n(Non-AR)"},
+    {"label": "February_1996_NonAR", "start": "1996-02-06", "end": "1996-02-12", "row_label": "Feb 6–12, 1996\n(Non-AR)"},
+    {"label": "January_2011_NonAR",  "start": "2011-01-15", "end": "2011-01-21", "row_label": "Jan 15–21, 2011\n(Non-AR)"},
+    {"label": "December_2023_NonAR", "start": "2023-12-03", "end": "2023-12-09", "row_label": "Dec 3–9, 2023\n(Non-AR)"},
 ]
 
-PRODUCTS = ['PRISM', 'Daymet',  'PNNL', 'CONUS404', 'UCLA', 'GridMET'] #'ORNL (Daymet)', 'HRRR'
-BIAS_PRODUCTS = ['Daymet', 'PNNL', 'CONUS404', 'UCLA', 'GridMET']
-BIAS_LABELS = {
-    'Daymet': 'Daymet - PRISM',
-    # 'ORNL (Daymet)': 'ORNL - PRISM',
-    'PNNL': 'PNNL - PRISM',
-    'CONUS404': 'CONUS404 - PRISM',
-    'UCLA': 'UCLA - PRISM',
-    'GridMET': 'GridMET - PRISM',
-    # 'HRRR': 'HRRR - PRISM'
-}
+PRODUCTS = ['PRISM', 'Daymet', 'ORNL (Daymet)', 'PNNL', 'CONUS404', 'UCLA', 'GridMET', 'HRRR']
 
 # --- Load static coordinates once ---
 print("Loading static grid coordinates...")
@@ -77,7 +55,7 @@ ds_ucla_static.close()
 # HRRR coordinates
 hrrr_lon = None
 hrrr_lat = None
-for y in range(2014, 2022):
+for y in range(2014, 2025):
     for m in range(1, 13):
         p = os.path.join(VAULT_DIR, "weather_data", f"{y}-{m:02d}_HRRR_data.zarr")
         if os.path.exists(p):
@@ -234,72 +212,81 @@ def load_event_grids(event):
     except Exception as e:
         print(f"    [WARN] Daymet/ORNL: {e}")
 
-    # 3. PNNL WRF
-    try:
-        pnnl_file = os.path.join(VAULT_DIR, "PNNL/historical", str(year),
-                                 f"PNNL_WRF.HIST.CTRL.hourly.PREC_ACC_NC.{year}.nc")
-        if os.path.exists(pnnl_file):
-            ds = xr.open_dataset(pnnl_file, chunks={'time': 720})
-            da_daily = ds['PREC_ACC_NC'].resample(time='1D').sum()
-            # Crop
-            mask_c = bb_mask(pnnl_lon_full, pnnl_lat_full)
+    # 3. PNNL WRF (available up to 2020)
+    if year <= 2020:
+        try:
+            pnnl_file = os.path.join(VAULT_DIR, "PNNL/historical", str(year),
+                                     f"PNNL_WRF.HIST.CTRL.hourly.PREC_ACC_NC.{year}.nc")
+            if os.path.exists(pnnl_file):
+                ds = xr.open_dataset(pnnl_file, chunks={'time': 720})
+                da_daily = ds['PREC_ACC_NC'].resample(time='1D').sum()
+                # Crop
+                mask_c = bb_mask(pnnl_lon_full, pnnl_lat_full)
+                rows, cols = np.where(mask_c)
+                rm, rx, cm, cx = rows.min(), rows.max(), cols.min(), cols.max()
+                da_daily = da_daily.isel(x=slice(rm, rx+1), y=slice(cm, cx+1))
+                lat_c = pnnl_lat_full[rm:rx+1, cm:cx+1]
+                lon_c = pnnl_lon_full[rm:rx+1, cm:cx+1]
+                da = da_daily.sel(time=slice(start, end)).mean(dim='time').compute()
+                da = da.assign_coords(lat=(('x', 'y'), lat_c), lon=(('x', 'y'), lon_c))
+                grids['PNNL'] = da
+                ds.close()
+                print("    PNNL OK")
+        except Exception as e:
+            print(f"    [WARN] PNNL: {e}")
+    else:
+        print("    PNNL skipped (post-2020 event)")
+
+    # 4. CONUS404 (available up to 2020)
+    if year <= 2020:
+        try:
+            conus_path = os.path.join(BASE_DIR, "data/weather_data/conus404_skagit_precip_daily_full.zarr")
+            ds = xr.open_zarr(conus_path)
+            mask_c = bb_mask(ds.lon.values, ds.lat.values)
             rows, cols = np.where(mask_c)
-            rm, rx, cm, cx = rows.min(), rows.max(), cols.min(), cols.max()
-            da_daily = da_daily.isel(x=slice(rm, rx+1), y=slice(cm, cx+1))
-            lat_c = pnnl_lat_full[rm:rx+1, cm:cx+1]
-            lon_c = pnnl_lon_full[rm:rx+1, cm:cx+1]
-            da = da_daily.sel(time=slice(start, end)).mean(dim='time').compute()
-            da = da.assign_coords(lat=(('x', 'y'), lat_c), lon=(('x', 'y'), lon_c))
-            grids['PNNL'] = da
+            if len(rows):
+                rm, rx, cm, cx = rows.min(), rows.max(), cols.min(), cols.max()
+                ds = ds.isel(y=slice(rm, rx+1), x=slice(cm, cx+1))
+            da = ds['precip_daily'].sel(time=slice(start, end)).mean(dim='time').compute()
+            grids['CONUS404'] = da
             ds.close()
-            print("    PNNL OK")
-    except Exception as e:
-        print(f"    [WARN] PNNL: {e}")
+            print("    CONUS404 OK")
+        except Exception as e:
+            print(f"    [WARN] CONUS404: {e}")
+    else:
+        print("    CONUS404 skipped (post-2020 event)")
 
-    # 4. CONUS404
-    try:
-        conus_path = os.path.join(BASE_DIR, "data/weather_data/conus404_skagit_precip_daily_full.zarr")
-        ds = xr.open_zarr(conus_path)
-        mask_c = bb_mask(ds.lon.values, ds.lat.values)
-        rows, cols = np.where(mask_c)
-        if len(rows):
-            rm, rx, cm, cx = rows.min(), rows.max(), cols.min(), cols.max()
-            ds = ds.isel(y=slice(rm, rx+1), x=slice(cm, cx+1))
-        da = ds['precip_daily'].sel(time=slice(start, end)).mean(dim='time').compute()
-        grids['CONUS404'] = da
-        ds.close()
-        print("    CONUS404 OK")
-    except Exception as e:
-        print(f"    [WARN] CONUS404: {e}")
-
-    # 5. UCLA ERA5 d02
-    try:
-        da_parts = []
-        for yr_off in [year-1, year]:
-            p = os.path.join(VAULT_DIR, "ucla_era5_d02_daily", "prec",
-                             f"prec.daily.era5.d02.{yr_off}.nc")
-            if os.path.exists(p):
-                file_start = f"{yr_off}-09-01"
-                file_end = f"{yr_off+1}-08-31"
-                s_start = max(start, file_start)
-                s_end = min(end, file_end)
-                if s_start <= s_end:
-                    ds_u = xr.open_dataset(p)
-                    u_var = "prec" if "prec" in ds_u.data_vars else "pr"
-                    da_part = ds_u[u_var].sel(day=slice(s_start, s_end)).compute()
-                    da_parts.append(da_part)
-                    ds_u.close()
-        if da_parts:
-            da_year = xr.concat(da_parts, dim='day')
-            da_year = da_year.isel(lat2d=slice(row_min_u, row_max_u+1),
-                                   lon2d=slice(col_min_u, col_max_u+1))
-            da = da_year.mean(dim='day')
-            da = da.assign_coords(lat=(('lat2d', 'lon2d'), ucla_lat_c),
-                                  lon=(('lat2d', 'lon2d'), ucla_lon_c))
-            grids['UCLA'] = da
-            print("    UCLA OK")
-    except Exception as e:
-        print(f"    [WARN] UCLA: {e}")
+    # 5. UCLA ERA5 d02 (available up to 2021)
+    if year <= 2021:
+        try:
+            da_parts = []
+            for yr_off in [year-1, year]:
+                p = os.path.join(VAULT_DIR, "ucla_era5_d02_daily", "prec",
+                                 f"prec.daily.era5.d02.{yr_off}.nc")
+                if os.path.exists(p):
+                    file_start = f"{yr_off}-09-01"
+                    file_end = f"{yr_off+1}-08-31"
+                    s_start = max(start, file_start)
+                    s_end = min(end, file_end)
+                    if s_start <= s_end:
+                        ds_u = xr.open_dataset(p)
+                        u_var = "prec" if "prec" in ds_u.data_vars else "pr"
+                        da_part = ds_u[u_var].sel(day=slice(s_start, s_end)).compute()
+                        da_parts.append(da_part)
+                        ds_u.close()
+            if da_parts:
+                da_year = xr.concat(da_parts, dim='day')
+                da_year = da_year.isel(lat2d=slice(row_min_u, row_max_u+1),
+                                       lon2d=slice(col_min_u, col_max_u+1))
+                da = da_year.mean(dim='day')
+                da = da.assign_coords(lat=(('lat2d', 'lon2d'), ucla_lat_c),
+                                      lon=(('lat2d', 'lon2d'), ucla_lon_c))
+                grids['UCLA'] = da
+                print("    UCLA OK")
+        except Exception as e:
+            print(f"    [WARN] UCLA: {e}")
+    else:
+        print("    UCLA skipped (post-2021 event)")
 
     # 6. GridMET
     try:
@@ -325,7 +312,6 @@ def load_event_grids(event):
             while cur <= end_dt:
                 months_needed.add((cur.year, cur.month))
                 cur += pd.DateOffset(months=1)
-            # Also include the next month in case event spans a boundary
             months_needed.add(((end_dt + pd.DateOffset(months=1)).year,
                                 (end_dt + pd.DateOffset(months=1)).month))
 
@@ -338,6 +324,7 @@ def load_event_grids(event):
                         ds_h = xr.open_zarr(p, consolidated=False)
                         ds_h = ds_h.isel(y=slice(row_min_h, row_max_h+1),
                                          x=slice(col_min_h, col_max_h+1))
+                        # Select forecast hour 1 (F01) via coordinate variables
                         if "forecast_hour" in ds_h.coords:
                             ds_h = ds_h.where(ds_h.forecast_hour == 1, drop=True)
                         elif "step" in ds_h.coords:
@@ -351,7 +338,7 @@ def load_event_grids(event):
                         da_d = da_d.drop_vars(['latitude', 'longitude'], errors='ignore')
                         da_months.append(da_d)
                         ds_h.close()
-                        break   # prefer non-fixed unless only fixed exists
+                        break
 
             if da_months:
                 da_all = xr.concat(da_months, dim='time').sortby('time').drop_duplicates('time')
@@ -370,52 +357,36 @@ def load_event_grids(event):
 
 def main():
     # Load and regrid all events
-    event_regridded_biases = {}
+    event_regridded_grids = {}
     
-    for event in AR_EVENTS:
+    for event in NON_AR_EVENTS:
         print(f"\nProcessing: {event['label']}")
         grids = load_event_grids(event)
         
         # Regrid each product
-        rg = {}
+        event_regridded_grids[event['label']] = {}
         for prod in PRODUCTS:
             print(f"  Regridding {prod} for {event['label']}...")
-            rg[prod] = regrid_to_6km(grids[prod], mask_2d)
-            
-        # Compute biases: Product - PRISM
-        event_regridded_biases[event['label']] = {}
-        prism_grid = rg['PRISM']
-        
-        for prod in BIAS_PRODUCTS:
-            prod_grid = rg[prod]
-            if prod_grid is not None and prism_grid is not None:
-                # Both must be valid to compute bias
-                bias_grid = prod_grid - prism_grid
-                event_regridded_biases[event['label']][prod] = bias_grid
-            else:
-                event_regridded_biases[event['label']][prod] = None
+            event_regridded_grids[event['label']][prod] = regrid_to_6km(grids[prod], mask_2d)
 
-    # Dynamic vmax: 99.5th percentile across all non-NaN biases
+    # Dynamic vmax: 99.5th percentile across all non-NaN values in all products/events
     print("\nCalculating dynamic colorbar limits...")
-    all_diffs = []
-    for elabel in event_regridded_biases:
-        for prod in BIAS_PRODUCTS:
-            g = event_regridded_biases[elabel][prod]
+    all_vals = []
+    for elabel in event_regridded_grids:
+        for prod in PRODUCTS:
+            g = event_regridded_grids[elabel][prod]
             if g is not None:
                 v = g[~np.isnan(g)]
-                all_diffs.extend(v)
-                
-    all_diffs = np.array(all_diffs)
-    if len(all_diffs):
-        vmax_diff = np.percentile(np.abs(all_diffs), 99.5)
-        vmax_diff = np.ceil(vmax_diff * 2) / 2.0  # round to nearest 0.5
-        vmax_diff = max(vmax_diff, 0.5)
+                all_vals.extend(v)
+    all_vals = np.array(all_vals)
+    if len(all_vals):
+        vmax = max(float(np.ceil(np.percentile(all_vals, 99.5))), 1.0)
     else:
-        vmax_diff = 10.0
-    vmin_diff = -vmax_diff
-    print(f"Global bias color range: {vmin_diff} to {vmax_diff} mm/day")
+        vmax = 60.0
+    vmin = 0.0
+    print(f"Global color range: {vmin}–{vmax} mm/day")
 
-    # Plot grid: 5 rows × 7 columns
+    # Plot grid: 5 rows × 8 columns
     plt.rcParams.update({
         'font.size': 13,
         'font.family': 'sans-serif',
@@ -423,28 +394,28 @@ def main():
     })
 
     fig, axes = plt.subplots(
-        len(AR_EVENTS), len(BIAS_PRODUCTS),
-        figsize=(15, 17.5),
+        len(NON_AR_EVENTS), len(PRODUCTS),
+        figsize=(25, 17.5),
         subplot_kw={"projection": ccrs.PlateCarree()},
         facecolor='#ffffff'
     )
 
     im = None
-    for row_idx, event in enumerate(AR_EVENTS):
+    for row_idx, event in enumerate(NON_AR_EVENTS):
         elabel = event['label']
-        for col_idx, prod in enumerate(BIAS_PRODUCTS):
+        for col_idx, prod in enumerate(PRODUCTS):
             ax = axes[row_idx, col_idx]
-            grid = event_regridded_biases[elabel][prod]
+            grid = event_regridded_grids[elabel][prod]
 
             if grid is not None and not np.all(np.isnan(grid)):
                 im = ax.pcolormesh(
                     ref_lon, ref_lat, grid,
                     transform=ccrs.PlateCarree(),
-                    cmap="RdBu_r", vmin=vmin_diff, vmax=vmax_diff,
+                    cmap="Greens", vmin=vmin, vmax=vmax,
                     shading='auto'
                 )
             else:
-                # Grey placeholder if product missing (e.g. HRRR pre-2014)
+                # Grey placeholder if product missing
                 ax.set_facecolor('#dddddd')
                 ax.text(0.5, 0.5, 'N/A', transform=ax.transAxes,
                         ha='center', va='center', fontsize=12, color='#555555')
@@ -467,27 +438,27 @@ def main():
 
         # Column titles on the first row
         if row_idx == 0:
-            for col_idx, prod in enumerate(BIAS_PRODUCTS):
-                label = BIAS_LABELS[prod]
+            for col_idx, prod in enumerate(PRODUCTS):
+                label = "ORNL (Daymet)" if prod == "ORNL" else prod
                 axes[0, col_idx].set_title(label, fontsize=16, fontweight='bold', pad=12)
 
     # Colorbar at the bottom of the grid
     if im is not None:
         cbar_ax = fig.add_axes([0.30, 0.05, 0.40, 0.02])
         cbar = fig.colorbar(im, cax=cbar_ax, orientation='horizontal',
-                            label="Precipitation Bias relative to PRISM (Product - PRISM, mm/day)")
+                            label="Average Daily Precipitation (mm/day)")
         cbar.ax.tick_params(labelsize=13)
 
     plt.subplots_adjust(left=0.08, right=0.98, top=0.88, bottom=0.10, wspace=0.05, hspace=0.08)
 
     # Overall title
     plt.suptitle(
-        "Spatial Distribution of Precipitation Biases during Atmospheric River Events\n"
-        "Product minus PRISM Baseline (Daily Average Precipitation Bias)",
+        "Spatial Distribution of Precipitation during Extreme Non-AR Events\n"
+        "Multi-Product Comparison (Daily Average Precipitation)",
         fontsize=22, fontweight='bold', y=0.96
     )
 
-    out_png = os.path.join(OUT_DIR, "ar_events_biases_comparison.png")
+    out_png = os.path.join(OUT_DIR, "non_ar_events_spatial_comparison.png")
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"\nSaved combined comparison figure to: {out_png}")

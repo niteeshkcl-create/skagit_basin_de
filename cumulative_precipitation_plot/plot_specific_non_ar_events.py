@@ -15,34 +15,27 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "cumulative_precipitation_plot")
 
 # Specific event dates to plot
 SPECIFIC_DATES = [
-    # '2003-10-29',
-    # '2006-11-04',
-    # '2021-11-15',
-    # '1990-11-25',
-    # '2017-11-23',
-    # '2010-12-13',
-    '1990-11-25',
-    '2010-12-13',
-    '1984-01-05',
-    '2017-11-23',
-    '1999-11-13',
-    '2011-01-17',
+    '1995-12-02',
+    '2011-01-18',
+    '2015-11-14',
+    '2007-03-13',
+    '1995-11-26',
+    '2010-12-14',  
 ]
 
-# 11/25/90
-# 12/12/25
-# 12/11/25
-# 11/24/90
-# 11/15/21
-# 12/13/10
-# 12/13/25
-# 1/5/84
-# 12/17/25
-# 11/23/17
-# 11/13/99
-# 1/17/11
-# 11/14/99
-# 3/25/07
+# 11/16/21
+# 12/2/95
+# 1/18/11
+# 11/14/15
+# 11/19/21
+# 3/13/07
+# 12/3/21
+# 11/26/95
+# 11/28/11
+# 12/14/10
+# 11/27/09
+# 12/12/04
+# 12/4/95
 
 def load_regions():
     gdf = gpd.read_file(HUC8_GEO).to_crs("EPSG:4326")
@@ -389,10 +382,10 @@ def plot_specific_ar_events():
         ax.grid(True, alpha=0.3)
         ax.tick_params(axis='x', rotation=45)
 
-    plt.suptitle('Cumulative Precipitation for Specific AR Events', fontsize=16, fontweight='bold')
+    plt.suptitle('Cumulative Precipitation for Specific non-AR Events', fontsize=16, fontweight='bold')
     plt.tight_layout()
 
-    output_path = os.path.join(OUTPUT_DIR, 'specific_ar_events_cumulative_precipitation.png')
+    output_path = os.path.join(OUTPUT_DIR, 'specific_non_ar_events_cumulative_precipitation.png')
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"Plot saved to: {output_path}")
     plt.show()

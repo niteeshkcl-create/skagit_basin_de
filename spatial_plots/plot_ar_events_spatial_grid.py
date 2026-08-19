@@ -28,19 +28,28 @@ BASE_DIR = "/data0/nksp2/skagit/skagit_2/skagit-met"
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
 BOUNDARY_PATH = os.path.join(BASE_DIR, "data/GIS/SkagitBoundary.json")
 SUBBASIN_PATH  = os.path.join(BASE_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
-OUT_DIR = os.path.join("/data0/hernanqd/plots_code/spatial_plots/plots/plot_ar_events_spatial_grid")
+OUT_DIR = os.path.join("/data0/hernanqd/plots_code/skagit_basin_de/spatial_plots/plots/plot_ar_events_spatial_grid")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # --- AR Event windows (exact dates from cumulative precipitation plot) ---
+# AR_EVENTS = [
+#     {"label": "October_2003_AR5",   "start": "2003-10-18", "end": "2003-10-24", "row_label": "Oct 18–24, 2003\n(AR5)"},
+#     {"label": "November_2006_AR4",  "start": "2006-11-04", "end": "2006-11-10", "row_label": "Nov 4–10, 2006\n(AR4)"},
+#     {"label": "October_2016_AR3",   "start": "2016-10-30", "end": "2016-11-05", "row_label": "Oct 30–Nov 5, 2016\n(AR3)"},
+#     {"label": "December_2018_AR2",  "start": "2018-12-15", "end": "2018-12-21", "row_label": "Dec 15–21, 2018\n(AR2)"},
+#     {"label": "November_2021_AR5",  "start": "2021-11-10", "end": "2021-11-17", "row_label": "Nov 10–17, 2021\n(AR5)"},
+# ]
+
 AR_EVENTS = [
-    {"label": "October_2003_AR5",   "start": "2003-10-18", "end": "2003-10-24", "row_label": "Oct 18–24, 2003\n(AR5)"},
-    {"label": "November_2006_AR4",  "start": "2006-11-04", "end": "2006-11-10", "row_label": "Nov 4–10, 2006\n(AR4)"},
-    {"label": "October_2016_AR3",   "start": "2016-10-30", "end": "2016-11-05", "row_label": "Oct 30–Nov 5, 2016\n(AR3)"},
-    {"label": "December_2018_AR2",  "start": "2018-12-15", "end": "2018-12-21", "row_label": "Dec 15–21, 2018\n(AR2)"},
-    {"label": "November_2021_AR5",  "start": "2021-11-10", "end": "2021-11-17", "row_label": "Nov 10–17, 2021\n(AR5)"},
+    {"label": "November_1990_AR5",   "start": "1990-11-23", "end": "1990-11-30", "row_label": "Nov 23–30, 1990\n(AR5)"},
+    {"label": "December_2010_AR3",  "start": "2010-12-11", "end": "2010-12-18", "row_label": "Dec 11–18, 2010\n(AR3)"},
+    {"label": "January_1984_AR4",  "start": "1984-01-03", "end": "1984-01-10", "row_label": "Jan 3–10, 1984\n(AR4)"},
+    {"label": "November_2017_AR4",  "start": "2017-11-21", "end": "2017-11-28", "row_label": "Nov 21–28, 2017\n(AR4)"},
+    {"label": "November_1999_AR3",  "start": "1999-11-11", "end": "1999-11-18", "row_label": "Nov 11–18, 1999\n(AR3)"},
+    {"label": "January_2011_AR2",  "start": "2011-01-15", "end": "2011-01-22", "row_label": "Jan 15–22, 2011\n(AR2)"}
 ]
 
-PRODUCTS = ['PRISM', 'Daymet', 'ORNL (Daymet)', 'PNNL', 'CONUS404', 'UCLA', 'GridMET', 'HRRR']
+PRODUCTS = ['PRISM', 'Daymet', 'PNNL', 'CONUS404', 'UCLA', 'GridMET'] #'ORNL (Daymet)', 'HRRR'
 
 # --- Load static coordinates once ---
 print("Loading static grid coordinates...")
@@ -389,7 +398,7 @@ def main():
 
     fig, axes = plt.subplots(
         len(AR_EVENTS), len(PRODUCTS),
-        figsize=(25, 17.5),
+        figsize=(17.5, 17.5),
         subplot_kw={"projection": ccrs.PlateCarree()},
         facecolor='#ffffff'
     )

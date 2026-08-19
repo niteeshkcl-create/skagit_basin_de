@@ -28,16 +28,24 @@ BASE_DIR = "/data0/nksp2/skagit/skagit_2/skagit-met"
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
 BOUNDARY_PATH = os.path.join(BASE_DIR, "data/GIS/SkagitBoundary.json")
 SUBBASIN_PATH  = os.path.join(BASE_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
-OUT_DIR = os.path.join("/data0/hernanqd/plots_code/spatial_plots/plots/plot_ar_event_spatial")
+OUT_DIR = os.path.join("/data0/hernanqd/plots_code/skagit_basin_de/spatial_plots/plots/plot_ar_event_spatial")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # --- AR Event windows (start, end inclusive) ---
+# AR_EVENTS = [
+#     {"label": "October_2003_AR5",   "start": "2003-10-18", "end": "2003-10-24", "row_label": "Oct 18–24, 2003\n(AR5)"},
+#     {"label": "November_2006_AR4",  "start": "2006-11-04", "end": "2006-11-10", "row_label": "Nov 4–10, 2006\n(AR4)"},
+#     {"label": "October_2016_AR3",   "start": "2016-10-30", "end": "2016-11-05", "row_label": "Oct 30–Nov 5, 2016\n(AR3)"},
+#     {"label": "December_2018_AR2",  "start": "2018-12-15", "end": "2018-12-21", "row_label": "Dec 15–21, 2018\n(AR2)"},
+#     {"label": "November_2021_AR5",  "start": "2021-11-10", "end": "2021-11-17", "row_label": "Nov 10–17, 2021\n(AR5)"},
+# ]
+
 AR_EVENTS = [
-    {"label": "October_2003_AR5",   "start": "2003-10-17", "end": "2003-10-24"},
-    {"label": "November_2006_AR4",  "start": "2006-11-03", "end": "2006-11-10"},
-    {"label": "October_2016_AR3",   "start": "2016-10-29", "end": "2016-11-05"},
-    {"label": "December_2018_AR2",  "start": "2018-12-14", "end": "2018-12-21"},
-    {"label": "November_2021_AR5",  "start": "2021-11-09", "end": "2021-11-17"},
+    {"label": "November_1990_AR5",   "start": "1990-11-23", "end": "1990-11-30", "row_label": "Nov 23–30, 1990\n(AR5)"},
+    {"label": "November_2024_AR5",  "start": "2024-11-22", "end": "2024-11-29", "row_label": "Nov 22–29, 2024\n(AR5)"},
+    {"label": "November_2021_AR4",   "start": "2021-11-13", "end": "2021-11-20", "row_label": "Nov 13–20, 2021\n(AR4)"},
+    {"label": "December_2010_AR3",  "start": "2010-12-11", "end": "2010-12-18", "row_label": "Dec 11–18, 2010\n(AR3)"},
+    {"label": "January_1984_AR4",  "start": "1984-01-03", "end": "1984-01-10", "row_label": "Jan 3–10, 1984\n(AR4)"},
 ]
 
 # Products to plot (same order as the seasonal figure)
