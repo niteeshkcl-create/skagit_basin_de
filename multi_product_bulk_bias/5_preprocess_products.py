@@ -18,11 +18,18 @@ def preprocess_products():
     df["date"] = pd.to_datetime(df["date"])
 
     # Create simple streamflow bins.
+    # Original bins in cfs:
     # bins_sf = [0, 10000, 20000, 40000, float("inf")]
     # labels_sf = ["< 10k", "10k - 20k", "20k - 40k", "> 40k"]
-    bins_sf = [0, 20000, 40000, 60000, float("inf")]
-    labels_sf = ["< 20k", "20k - 40k", "40k - 60k", "> 60k"]
-    df["Streamflow Bucket (cfs)"] = pd.cut(df["discharge_cfs"], bins=bins_sf, labels=labels_sf)
+    # bins_sf = [0, 20000, 40000, 60000, float("inf")]
+    # labels_sf = ["< 20k", "20k - 40k", "40k - 60k", "> 60k"]
+    # df["Streamflow Bucket (cfs)"] = pd.cut(df["discharge_cfs"], bins=bins_sf, labels=labels_sf)
+
+    # Converted to cms (1 cfs = 0.0283168 cms)
+    df["discharge_cms"] = df["discharge_cfs"] * 0.0283168
+    bins_sf = [0, 600, 1200, 1700, float("inf")]
+    labels_sf = ["< 600", "600 - 1200", "1200 - 1700", "> 1700"]
+    df["Streamflow Bucket (cms)"] = pd.cut(df["discharge_cms"], bins=bins_sf, labels=labels_sf)
 
     # Create simple precipitation bins based on PRISM totals.
     bins_pr = [-1, 20, 50, 100, float("inf")]

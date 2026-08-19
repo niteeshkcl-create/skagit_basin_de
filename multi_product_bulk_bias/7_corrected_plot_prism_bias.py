@@ -25,8 +25,9 @@ def plot_prism_bias():
         return sorted(values, key=lambda x: float(x))
     
     def custom_sort_streamflow(values):
-        # order = ["< 10k", "10k - 20k", "20k - 40k", "> 40k"]
-        order = ["< 20k", "20k - 40k", "40k - 60k", "> 60k"]
+        # Old order in cfs: ["< 10k", "10k - 20k", "20k - 40k", "> 40k"]
+        # Old order in cfs: ["< 20k", "20k - 40k", "40k - 60k", "> 60k"]
+        order = ["< 600", "600 - 1200", "1200 - 1700", "> 1700"]
         return sorted(values, key=lambda x: order.index(x) if x in order else len(order))
     
     def custom_sort_precipitation(values):
@@ -44,7 +45,7 @@ def plot_prism_bias():
     # Melt to long format for plotting.
     products = ["PNNL", "Daymet","CONUS404", "UCLA", "GridMET"] #, "HRRR"] #, "ORNL_mean", "ORNL_median"]
     melted = df.melt(
-        id_vars=["date", "ar_scale", "Streamflow Bucket (cfs)", "Precipitation Bucket (mm)", "prism_3d_tot"],
+        id_vars=["date", "ar_scale", "Streamflow Bucket (cms)", "Precipitation Bucket (mm)", "prism_3d_tot"],
         value_vars=products,
         var_name="Product",
         value_name="Bias",
@@ -109,19 +110,6 @@ def plot_prism_bias():
             ax.set_xticks(range(len(bucket_counts)))
             ax.set_xticklabels(bucket_counts)
 
-        # Add secondary y-axis with mean PRISM if requested
-        if show_mean_prism:
-            ax2 = ax.twinx()
-            mean_prism_values = []
-            for x_level in x_levels:
-                mean_prism = data[data[x_col].astype(str) == x_level]["prism_3d_tot"].mean()
-                mean_prism_values.append(mean_prism)
-            ax2.plot(range(len(x_levels)), mean_prism_values, color="grey", marker="o", linestyle="--", linewidth=2, markersize=6, label="Mean PRISM", alpha=0.6)
-            ax2.set_ylabel("Mean PRISM 3D Total (mm)", color="grey", fontsize=14)
-            ax2.tick_params(axis="y", labelcolor="grey")
-            ax2.grid(False)
-            if prism_ylim is not None:
-                ax2.set_ylim(prism_ylim)
 
         ax.axhline(0, color="black", linestyle="--", linewidth=1.5, alpha=0.8)
         ax.set_ylabel("Bias (mm)")
@@ -142,36 +130,21 @@ def plot_prism_bias():
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10), facecolor="white") #, sharey='row')
 
-    # Calculate global min/max for secondary y-axis across all plots
-    all_mean_prism = []
-    for dataset, x_col_name in [
-        (period1[period1["ar_scale"] > 0], "ar_scale"),
-        (period1, "Streamflow Bucket (cfs)"),
-        (period1[period1["ar_scale"] == 0], "Precipitation Bucket (mm)"),
-        (period1, "Precipitation Bucket (mm)"),
-    ]:
-        x_levels_temp = list(dict.fromkeys(dataset[x_col_name].astype(str).tolist()))
-        for x_level in x_levels_temp:
-            mean_prism = dataset[dataset[x_col_name].astype(str) == x_level]["prism_3d_tot"].mean()
-            all_mean_prism.append(mean_prism)
-
-    prism_ylim = (min(all_mean_prism), max(all_mean_prism))
-
-    plot_panel(axes[0, 0], period1[period1["ar_scale"] > 0], "ar_scale", [p for p in products], sort_func=custom_sort_ar_scale, show_bucket_size=True, show_mean_prism=True, prism_ylim=prism_ylim)
+    plot_panel(axes[0, 0], period1[period1["ar_scale"] > 0], "ar_scale", [p for p in products], sort_func=custom_sort_ar_scale, show_bucket_size=True)
     axes[0, 0].set_title("Bias by AR Scale (1981 - 2020)", weight="bold")
     axes[0, 0].set_xlabel("Atmospheric River Scale (1-5)", labelpad=8)
 
 
-    plot_panel(axes[1, 0], period1, "Streamflow Bucket (cfs)", [p for p in products], sort_func=custom_sort_streamflow, show_bucket_size=True, show_mean_prism=True, prism_ylim=prism_ylim)
+    plot_panel(axes[1, 0], period1, "Streamflow Bucket (cms)", [p for p in products], sort_func=custom_sort_streamflow, show_bucket_size=True)
     axes[1, 0].set_title("Bias by Streamflow Intensity (1981 - 2020)\nAR and non-AR events", weight="bold", fontsize=14)
-    axes[1, 0].set_xlabel("Streamflow Range (cfs)", labelpad=8)
+    axes[1, 0].set_xlabel("Streamflow Range (cms)", labelpad=8)
 
 
-    plot_panel(axes[0, 1], period1[period1["ar_scale"] == 0], "Precipitation Bucket (mm)", [p for p in products], sort_func=custom_sort_precipitation, show_bucket_size=True, show_mean_prism=True, prism_ylim=prism_ylim)
+    plot_panel(axes[0, 1], period1[period1["ar_scale"] == 0], "Precipitation Bucket (mm)", [p for p in products], sort_func=custom_sort_precipitation, show_bucket_size=True)
     axes[0, 1].set_title("Bias by PRISM Precipitation Intensity (1981 - 2020)\nNon-AR Events", weight="bold", fontsize=14)
     axes[0, 1].set_xlabel("PRISM 3-Day Total Precipitation Range (mm)", labelpad=8)
 
-    plot_panel(axes[1, 1], period1, "Precipitation Bucket (mm)", [p for p in products], sort_func=custom_sort_precipitation, show_bucket_size=True, show_mean_prism=True, prism_ylim=prism_ylim)
+    plot_panel(axes[1, 1], period1, "Precipitation Bucket (mm)", [p for p in products], sort_func=custom_sort_precipitation, show_bucket_size=True)
     axes[1, 1].set_title("Bias by PRISM Precipitation Intensity (1981 - 2020)\nAR and Non-AR Events", weight="bold", fontsize=14)
     axes[1, 1].set_xlabel("PRISM 3-Day Total Precipitation Range (mm)", labelpad=8)
 

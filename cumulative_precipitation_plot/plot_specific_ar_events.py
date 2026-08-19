@@ -15,14 +15,29 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "cumulative_precipitation_plot")
 
 # Specific event dates to plot
 SPECIFIC_DATES = [
-    '2003-10-29',
-    '2006-11-04',
-    '2021-11-15',
+    # '2003-10-29',
+    # '2006-11-04',
+    # '2021-11-15',
+    # '1990-11-25',
+    # '2017-11-23',
+    # '2010-12-13',
     '1990-11-25',
-    '2017-11-23',
+    '2021-11-16',
+    '1990-11-24',
+    '2021-11-15',
     '2010-12-13',
+    '1984-01-05'
 ]
 
+# 11/25/90
+# 11/16/21
+# 12/12/25
+# 12/11/25
+# 11/24/90
+# 11/15/21
+# 12/13/10
+# 12/13/25
+# 1/5/84
 
 def load_regions():
     gdf = gpd.read_file(HUC8_GEO).to_crs("EPSG:4326")
@@ -349,7 +364,8 @@ def plot_specific_ar_events():
         # Get AR scale and discharge
         event_row = events_df[events_df['date'] == event_date]
         ar_scale = event_row['ar_scale'].values[0] if len(event_row) > 0 else None
-        discharge = event_row['discharge_cfs'].values[0] if len(event_row) > 0 else None
+        discharge_cfs = event_row['discharge_cfs'].values[0] if len(event_row) > 0 else None
+        discharge_cms = discharge_cfs * 0.0283168 if discharge_cfs is not None else None
 
         # Plot each product
         for prod_idx, product in enumerate(products):
@@ -359,7 +375,7 @@ def plot_specific_ar_events():
                        marker=markers[prod_idx], linewidth=2, markersize=5,
                        color=colors[prod_idx], alpha=0.8)
 
-        ar_label = f'(AR = {ar_scale} | Discharge = {discharge:.0f} cfs)' if ar_scale is not None else ''
+        ar_label = f'(AR = {ar_scale} | Discharge = {discharge_cms:.0f} cms)' if ar_scale is not None else ''
         ax.set_title(f'Event: {event_date.strftime("%Y-%m-%d")} {ar_label}', fontsize=12, fontweight='bold')
         ax.set_xlabel('Date', fontsize=10)
         ax.set_ylabel('Cumulative Precipitation (mm)', fontsize=10)

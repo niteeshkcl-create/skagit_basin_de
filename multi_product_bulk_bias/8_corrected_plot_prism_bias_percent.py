@@ -25,8 +25,9 @@ def plot_prism_bias_percent():
         return sorted(values, key=lambda x: float(x))
 
     def custom_sort_streamflow(values):
-        # order = ["< 10k", "10k - 20k", "20k - 40k", "> 40k"]
-        order = ["< 20k", "20k - 40k", "40k - 60k", "> 60k"]
+        # Old order in cfs: ["< 10k", "10k - 20k", "20k - 40k", "> 40k"]
+        # Old order in cfs: ["< 20k", "20k - 40k", "40k - 60k", "> 60k"]
+        order = ["< 600", "600 - 1200", "1200 - 1700", "> 1700"]
         return sorted(values, key=lambda x: order.index(x) if x in order else len(order))
 
     def custom_sort_precipitation(values):
@@ -44,7 +45,7 @@ def plot_prism_bias_percent():
     # Melt to long format for plotting.
     products = ["PNNL_%", "Daymet_%","CONUS404_%", "UCLA_%", "GridMET_%"] #, "HRRR_%"] #, "ORNL_mean", "ORNL_median"]
     melted = df.melt(
-        id_vars=["date", "ar_scale", "Streamflow Bucket (cfs)", "Precipitation Bucket (mm)"],
+        id_vars=["date", "ar_scale", "Streamflow Bucket (cms)", "Precipitation Bucket (mm)"],
         value_vars=products,
         var_name="Product",
         value_name="Bias",
@@ -136,9 +137,9 @@ def plot_prism_bias_percent():
     axes[0, 0].set_xlabel("Atmospheric River Scale (1-5)", labelpad=8)
 
 
-    plot_panel(axes[1, 0], period1, "Streamflow Bucket (cfs)", [p for p in products], sort_func=custom_sort_streamflow, show_bucket_size=True)
+    plot_panel(axes[1, 0], period1, "Streamflow Bucket (cms)", [p for p in products], sort_func=custom_sort_streamflow, show_bucket_size=True)
     axes[1, 0].set_title("% Bias by Streamflow Intensity (1981 - 2020)\nAR and non-AR events", weight="bold", fontsize=14)
-    axes[1, 0].set_xlabel("Streamflow Range (cfs)", labelpad=8)
+    axes[1, 0].set_xlabel("Streamflow Range (cms)", labelpad=8)
 
 
     plot_panel(axes[0, 1], period1[period1["ar_scale"] == 0], "Precipitation Bucket (mm)", [p for p in products], sort_func=custom_sort_precipitation, show_bucket_size=True)
