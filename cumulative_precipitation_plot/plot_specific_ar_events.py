@@ -5,6 +5,9 @@ import xarray as xr
 import numpy as np
 import geopandas as gpd
 import regionmask
+import zipfile
+import tempfile
+import rioxarray
 
 # Configuration
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
@@ -13,7 +16,13 @@ HUC8_GEO = os.path.join(BASE_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
 EVENTS_CSV = os.path.join(BASE_DIR, "multi_product_bulk_bias/outputs/4_clean_bias_table.csv")
 OUTPUT_DIR = os.path.join(BASE_DIR, "cumulative_precipitation_plot")
 
+# Hydrology data paths
+HYDRO_BASE_DIR = "/data0/nksp2/skagit/skagit_2/skagit-met"
+HYDRO_EXP_DATA_DIR = os.path.join(HYDRO_BASE_DIR, "experiments_2/data")
+HYDRO_Q_PATH = os.path.join(HYDRO_EXP_DATA_DIR, "usgs_12200500_discharge.rdb")
+
 # Specific event dates to plot
+# Can be a string date or a dict with 'event_date', 'start_date', 'end_date' for custom ranges
 SPECIFIC_DATES = [
     # '2003-10-29',
     # '2006-11-04',
@@ -27,6 +36,8 @@ SPECIFIC_DATES = [
     '2017-11-23',
     '1999-11-13',
     '2011-01-17',
+    {'event_date': '2003-10-29', 'start_date': '2003-10-14', 'end_date': '2003-11-03'},  # custom range
+    '1995-11-26'
 ]
 
 # 11/25/90
@@ -43,6 +54,78 @@ SPECIFIC_DATES = [
 # 1/17/11
 # 11/14/99
 # 3/25/07
+
+def load_prism_from_new_format(date, new_precip_dir):
+    """Load PRISM data from new format (TIFF) zip file for a specific date"""
+    date_str = date.strftime('%Y%m%d')
+    zip_path = os.path.join(new_precip_dir, f"prism_ppt_us_25m_{date_str}.zip")
+
+    if not os.path.exists(zip_path):
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                z.extractall(tmpdir)
+                # Find TIFF file
+                for root, dirs, files in os.walk(tmpdir):
+                    for f in files:
+                        if f.endswith('.tif'):
+                            filepath = os.path.join(root, f)
+                            da = rioxarray.open_rasterio(filepath)
+                            # Make a deep copy so it persists after tmpdir is deleted
+                            return da.copy(deep=True)
+    except Exception as e:
+        pass  # Silent fail, will try fallback
+
+    return None
+
+
+def load_prism_from_zip(date, vault_dir):
+    """Load PRISM data from zip file for a specific date"""
+    date_str = date.strftime('%Y%m%d')
+    year = date.year
+    decade_folder = get_decade_folder(year)
+    zip_path = os.path.join(vault_dir, "PRISM", decade_folder, f"ppt_{date_str}_4km.zip")
+
+    if not os.path.exists(zip_path):
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                z.extractall(tmpdir)
+                # Find NetCDF file
+                for root, dirs, files in os.walk(tmpdir):
+                    for f in files:
+                        if f.endswith('.nc'):
+                            filepath = os.path.join(root, f)
+                            ds = xr.open_dataset(filepath)
+                            # Make a deep copy so it persists after tmpdir is deleted
+                            return ds.copy(deep=True)
+    except Exception as e:
+        print(f"  Error loading PRISM from zip for {date_str}: {e}")
+
+    return None
+
+
+def load_usgs_rdb(filepath, param_name):
+    """Load USGS RDB file"""
+    try:
+        df = pd.read_csv(filepath, sep='\t', comment='#')
+        df = df.iloc[1:].reset_index(drop=True)
+        val_cols = [c for c in df.columns if '_00' in c and not c.endswith('_cd')]
+        if not val_cols: return pd.DataFrame(columns=['date', param_name])
+        val_col = val_cols[0]
+        df = df[['datetime', val_col]]
+        df.columns = ['date', param_name]
+        df['date'] = pd.to_datetime(df['date'])
+        df[param_name] = pd.to_numeric(df[param_name], errors='coerce')
+        return df
+    except Exception as e:
+        print(f"  Error loading {filepath}: {e}")
+        return pd.DataFrame(columns=['date', param_name])
+
 
 def load_regions():
     gdf = gpd.read_file(HUC8_GEO).to_crs("EPSG:4326")
@@ -61,6 +144,7 @@ def get_mask(gdf, lon, lat):
 def calculate_basin_mean(da, mask_2d):
     data = da.values
     mask = mask_2d.values if hasattr(mask_2d, 'values') else mask_2d
+
     if data.ndim == 3:
         time_steps = data.shape[0]
         data_flat = data.reshape(time_steps, -1)
@@ -73,6 +157,10 @@ def calculate_basin_mean(da, mask_2d):
         time_coord = da.time.values if 'time' in da.coords else range(time_steps)
         return pd.Series(mean_vals, index=pd.to_datetime(time_coord))
     elif data.ndim == 2:
+        # Mask out nodata values (typically -9999 or negative values for TIFF)
+        data = data.astype(float)
+        data[data < 0] = np.nan  # Treat negative values as nodata
+
         data_flat = data.flatten()
         mask_flat = mask.flatten()
         mask_idx = mask_flat > 0
@@ -110,12 +198,19 @@ def get_ornl_zarr(year):
     return None
 
 
-def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daymet', 'conus', 'ucla', 'gridmet']):
-    """Extract 8-day precipitation window (T-2 to T+5) for an event"""
+def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daymet', 'conus', 'ucla', 'gridmet'], start_date=None, end_date=None):
+    """Extract precipitation window for an event. Default is 8-day window (T-2 to T+5), but can use custom range."""
 
-    window_dates = []
-    for i in range(-2, 6):
-        window_dates.append(event_date + pd.Timedelta(days=i))
+    if start_date and end_date:
+        # Custom date range
+        start_dt = pd.Timestamp(start_date)
+        end_dt = pd.Timestamp(end_date)
+        window_dates = pd.date_range(start_dt, end_dt, freq='D').tolist()
+    else:
+        # Default 8-day window (T-2 to T+5)
+        window_dates = []
+        for i in range(-2, 6):
+            window_dates.append(event_date + pd.Timedelta(days=i))
 
     year = event_date.year
     results = {f'{date.strftime("%Y-%m-%d")}': {} for date in window_dates}
@@ -161,33 +256,145 @@ def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daym
     except:
         pass
 
-    # Extract PRISM
+    # Extract PRISM from new format (TIFF) or fallback to old zip format
     if 'prism' in products_to_extract:
-        try:
-            dec = get_decade_folder(year)
-            prism_path_4k = os.path.join(VAULT_DIR, "PRISM", dec, f"{year}-01-01_{year}-12-31_daily_4km_PRISM_data.zarr")
-            prism_path_800 = os.path.join(VAULT_DIR, "prism_ppt_800m", f"{year}-01-01_{year}-12-31_daily_800m_PRISM_data.zarr")
-            prism_path = prism_path_4k if os.path.exists(prism_path_4k) else prism_path_800
-            if os.path.exists(prism_path):
-                ds = xr.open_zarr(prism_path, consolidated=False)
-                ds['time'] = pd.to_datetime(ds.time.values).normalize()
-                da = ds['ppt'].sel(time=window_dates, method='nearest')
-                if "800m" in prism_path:
-                    m_prism = get_mask(gdf, ds.lon, ds.lat).any(dim='region')
-                else:
-                    m_prism = masks_2d.get('PRISM')
-                if m_prism is not None:
-                    prism_daily = calculate_basin_mean(da, m_prism)
-                    prism_daily.index = prism_daily.index.normalize()
-                    prism_daily = prism_daily[~prism_daily.index.duplicated(keep='first')]
-                    for date in window_dates:
-                        normalized_date = date.normalize()
-                        if normalized_date in prism_daily.index:
-                            val = prism_daily[normalized_date]
-                            results[f'{date.strftime("%Y-%m-%d")}']['prism'] = float(val) if not isinstance(val, pd.Series) else float(val.iloc[0])
-                ds.close()
-        except Exception as e:
-            print(f"Error loading PRISM for {event_date.strftime('%Y-%m-%d')}: {e}")
+        new_precip_dir = os.path.join(BASE_DIR, "cumulative_precipitation_plot/new_precip_files")
+        prism_data = {}
+
+        # Load PRISM data for each date in the window
+        for date in window_dates:
+            try:
+                # Try new format first (TIFF)
+                data = load_prism_from_new_format(date, new_precip_dir)
+                is_new_format = data is not None
+
+                # Fallback to old format (NetCDF from zip) if new format not available
+                if data is None:
+                    data = load_prism_from_zip(date, VAULT_DIR)
+                    is_new_format = False
+
+                if data is not None:
+                    # Handle both formats: TIFF (DataArray) and NetCDF (Dataset)
+                    if isinstance(data, xr.DataArray):
+                        # New format (TIFF): data is already a DataArray
+                        # Properly squeeze all dimensions to get to 2D
+                        da = data.squeeze()
+                        # Make sure it's 2D after squeezing
+                        while da.ndim > 2:
+                            if 'dim_0' in da.dims:
+                                da = da.isel(dim_0=0)
+                            else:
+                                da = da.isel({list(da.dims)[0]: 0})
+                        lon = data.x.values
+                        lat = data.y.values
+                        ds_for_mask = None
+                    else:
+                        # Old format (NetCDF): data is a Dataset
+                        ppt_var = 'ppt' if 'ppt' in data.data_vars else 'Band1'
+                        if ppt_var not in data.data_vars:
+                            continue
+                        da = data[ppt_var]
+                        lon = data.lon.values
+                        lat = data.lat.values
+                        ds_for_mask = data
+
+                        # Handle dimensions for NetCDF
+                        if da.ndim == 3:
+                            da = da.isel(band=0) if 'band' in da.dims else da.isel(time=0)
+                        elif da.ndim == 0:  # scalar, skip
+                            data.close()
+                            continue
+
+                    # Create mask based on this file's actual grid dimensions
+                    m_prism = get_mask(gdf, lon, lat).any(dim='region')
+
+                    # Calculate basin mean
+                    if m_prism is not None:
+                        mean_val = calculate_basin_mean(da, m_prism)
+                        prism_data[date.normalize()] = mean_val
+
+                    if ds_for_mask is not None:
+                        ds_for_mask.close()
+            except Exception as date_error:
+                pass  # Skip dates where files don't exist
+
+        # Add extracted values to results
+        for date in window_dates:
+            normalized_date = date.normalize()
+            if normalized_date in prism_data:
+                results[f'{date.strftime("%Y-%m-%d")}']['prism'] = float(prism_data[normalized_date])
+
+        # Debug: Print what was found
+        prism_count = sum(1 for d in prism_data.values() if not np.isnan(d))
+        if prism_count > 0:
+            print(f"  ✓ PRISM: {prism_count}/{len(window_dates)} dates extracted")
+
+    # OLD CODE: Extract PRISM from zip files (commented out - now using new format first)
+    # if 'prism' in products_to_extract:
+    #     prism_data = {}
+    #     # Load PRISM data for each date in the window from individual zip files
+    #     for date in window_dates:
+    #         try:
+    #             ds = load_prism_from_zip(date, VAULT_DIR)
+    #
+    #             if ds is not None:
+    #                 # Get precipitation variable (handle both 'ppt' and 'Band1')
+    #                 ppt_var = 'ppt' if 'ppt' in ds.data_vars else 'Band1'
+    #                 if ppt_var in ds.data_vars:
+    #                     da = ds[ppt_var]
+    #
+    #                     # Handle dimensions: might be (lat, lon) or have time/band dims
+    #                     if da.ndim == 3:  # (band, lat, lon) or (time, lat, lon)
+    #                         da = da.isel(band=0) if 'band' in da.dims else da.isel(time=0)
+    #                     elif da.ndim == 0:  # scalar, skip
+    #                         ds.close()
+    #                         continue
+    #
+    #                     # Create mask based on this file's actual grid dimensions
+    #                     m_prism = get_mask(gdf, ds.lon.values, ds.lat.values).any(dim='region')
+    #
+    #                     # Calculate basin mean
+    #                     if m_prism is not None:
+    #                         mean_val = calculate_basin_mean(da, m_prism)
+    #                         prism_data[date.normalize()] = mean_val
+    #
+    #                 ds.close()
+    #         except Exception as date_error:
+    #             pass  # Skip dates where zip file doesn't exist
+    #
+    #     # Add extracted values to results
+    #     for date in window_dates:
+    #         normalized_date = date.normalize()
+    #         if normalized_date in prism_data:
+    #             results[f'{date.strftime("%Y-%m-%d")}']['prism'] = float(prism_data[normalized_date])
+
+    # OLD CODE: Extract PRISM from zarr (commented out - now loading from zip files)
+    # if 'prism' in products_to_extract:
+    #     try:
+    #         dec = get_decade_folder(year)
+    #         prism_path_4k = os.path.join(VAULT_DIR, "PRISM", dec, f"{year}-01-01_{year}-12-31_daily_4km_PRISM_data.zarr")
+    #         prism_path_800 = os.path.join(VAULT_DIR, "prism_ppt_800m", f"{year}-01-01_{year}-12-31_daily_800m_PRISM_data.zarr")
+    #         prism_path = prism_path_4k if os.path.exists(prism_path_4k) else prism_path_800
+    #         if os.path.exists(prism_path):
+    #             ds = xr.open_zarr(prism_path, consolidated=False)
+    #             ds['time'] = pd.to_datetime(ds.time.values).normalize()
+    #             da = ds['ppt'].sel(time=window_dates, method='nearest')
+    #             if "800m" in prism_path:
+    #                 m_prism = get_mask(gdf, ds.lon, ds.lat).any(dim='region')
+    #             else:
+    #                 m_prism = masks_2d.get('PRISM')
+    #             if m_prism is not None:
+    #                 prism_daily = calculate_basin_mean(da, m_prism)
+    #                 prism_daily.index = prism_daily.index.normalize()
+    #                 prism_daily = prism_daily[~prism_daily.index.duplicated(keep='first')]
+    #                 for date in window_dates:
+    #                     normalized_date = date.normalize()
+    #                     if normalized_date in prism_daily.index:
+    #                         val = prism_daily[normalized_date]
+    #                         results[f'{date.strftime("%Y-%m-%d")}']['prism'] = float(val) if not isinstance(val, pd.Series) else float(val.iloc[0])
+    #             ds.close()
+    #     except Exception as e:
+    #         print(f"Error loading PRISM for {event_date.strftime('%Y-%m-%d')}: {e}")
 
     # Extract PNNL
     if 'pnnl' in products_to_extract and year <= 2020:
@@ -329,8 +536,18 @@ def plot_specific_ar_events():
     events_df = pd.read_csv(EVENTS_CSV)
     events_df['date'] = pd.to_datetime(events_df['date'])
 
-    # Convert specific dates to datetime
-    event_dates = [pd.to_datetime(d) for d in SPECIFIC_DATES]
+    print("Loading discharge data...")
+    q_df = load_usgs_rdb(HYDRO_Q_PATH, 'discharge_cfs')
+
+    # Convert specific dates to datetime and extract date/range info
+    events_info = []
+    for d in SPECIFIC_DATES:
+        if isinstance(d, dict):
+            events_info.append(d)
+        else:
+            events_info.append({'event_date': d})
+
+    event_dates = [pd.to_datetime(info['event_date']) for info in events_info]
 
     print(f"Extracting and plotting {len(event_dates)} specific AR events...")
 
@@ -339,20 +556,26 @@ def plot_specific_ar_events():
     max_cumsum = 0
     all_event_data = {}
 
-    for event_date in event_dates:
+    for event_date, event_info in zip(event_dates, events_info):
         print(f"Extracting data for {event_date.strftime('%Y-%m-%d')}...")
-        window_df = extract_event_window(event_date, products_to_extract=products)
+        start_date = event_info.get('start_date')
+        end_date = event_info.get('end_date')
+        window_df = extract_event_window(event_date, products_to_extract=products, start_date=start_date, end_date=end_date)
         all_event_data[event_date] = window_df
 
         for product in products:
             if product in window_df.columns:
                 cumsum = window_df[product].cumsum()
-                max_cumsum = max(max_cumsum, cumsum.max())
+                valid_values = cumsum[cumsum.notna()].max() if len(cumsum[cumsum.notna()]) > 0 else np.nan
+                if not np.isnan(valid_values):
+                    max_cumsum = max(max_cumsum, valid_values)
+                if product == 'prism':
+                    print(f"    PRISM data: {window_df[product].values}")
 
     ylim_max = max_cumsum * 1.05
 
     # Create plots
-    fig, axes = plt.subplots(3, 2, figsize=(14, 10))
+    fig, axes = plt.subplots(4, 2, figsize=(14, 14))
     axes = axes.flatten()
 
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
@@ -366,11 +589,16 @@ def plot_specific_ar_events():
         event_data.index = pd.to_datetime(event_data.index)
         event_data = event_data.sort_index()
 
-        # Get AR scale and discharge
+        # Get AR scale
         event_row = events_df[events_df['date'] == event_date]
         ar_scale = event_row['ar_scale'].values[0] if len(event_row) > 0 else None
-        discharge_cfs = event_row['discharge_cfs'].values[0] if len(event_row) > 0 else None
-        discharge_cms = discharge_cfs * 0.0283168 if discharge_cfs is not None else None
+
+        # Find maximum discharge in event window
+        event_start = event_data.index.min()
+        event_end = event_data.index.max()
+        discharge_window = q_df[(q_df['date'] >= event_start) & (q_df['date'] <= event_end)]
+        max_discharge_cfs = discharge_window['discharge_cfs'].max() if len(discharge_window) > 0 else None
+        discharge_cms = max_discharge_cfs * 0.0283168 if max_discharge_cfs is not None and max_discharge_cfs > 0 else None
 
         # Plot each product
         for prod_idx, product in enumerate(products):

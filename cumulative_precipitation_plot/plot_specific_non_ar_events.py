@@ -13,6 +13,11 @@ HUC8_GEO = os.path.join(BASE_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
 EVENTS_CSV = os.path.join(BASE_DIR, "multi_product_bulk_bias/outputs/4_clean_bias_table.csv")
 OUTPUT_DIR = os.path.join(BASE_DIR, "cumulative_precipitation_plot")
 
+# Hydrology data paths
+HYDRO_BASE_DIR = "/data0/nksp2/skagit/skagit_2/skagit-met"
+HYDRO_EXP_DATA_DIR = os.path.join(HYDRO_BASE_DIR, "experiments_2/data")
+HYDRO_Q_PATH = os.path.join(HYDRO_EXP_DATA_DIR, "usgs_12200500_discharge.rdb")
+
 # Specific event dates to plot
 SPECIFIC_DATES = [
     '1995-12-02',
@@ -36,6 +41,24 @@ SPECIFIC_DATES = [
 # 11/27/09
 # 12/12/04
 # 12/4/95
+
+def load_usgs_rdb(filepath, param_name):
+    """Load USGS RDB file"""
+    try:
+        df = pd.read_csv(filepath, sep='\t', comment='#')
+        df = df.iloc[1:].reset_index(drop=True)
+        val_cols = [c for c in df.columns if '_00' in c and not c.endswith('_cd')]
+        if not val_cols: return pd.DataFrame(columns=['date', param_name])
+        val_col = val_cols[0]
+        df = df[['datetime', val_col]]
+        df.columns = ['date', param_name]
+        df['date'] = pd.to_datetime(df['date'])
+        df[param_name] = pd.to_numeric(df[param_name], errors='coerce')
+        return df
+    except Exception as e:
+        print(f"  Error loading {filepath}: {e}")
+        return pd.DataFrame(columns=['date', param_name])
+
 
 def load_regions():
     gdf = gpd.read_file(HUC8_GEO).to_crs("EPSG:4326")
@@ -322,6 +345,9 @@ def plot_specific_ar_events():
     events_df = pd.read_csv(EVENTS_CSV)
     events_df['date'] = pd.to_datetime(events_df['date'])
 
+    print("Loading discharge data...")
+    q_df = load_usgs_rdb(HYDRO_Q_PATH, 'discharge_cfs')
+
     # Convert specific dates to datetime
     event_dates = [pd.to_datetime(d) for d in SPECIFIC_DATES]
 
@@ -359,11 +385,16 @@ def plot_specific_ar_events():
         event_data.index = pd.to_datetime(event_data.index)
         event_data = event_data.sort_index()
 
-        # Get AR scale and discharge
+        # Get AR scale
         event_row = events_df[events_df['date'] == event_date]
         ar_scale = event_row['ar_scale'].values[0] if len(event_row) > 0 else None
-        discharge_cfs = event_row['discharge_cfs'].values[0] if len(event_row) > 0 else None
-        discharge_cms = discharge_cfs * 0.0283168 if discharge_cfs is not None else None
+
+        # Find maximum discharge in event window
+        event_start = event_data.index.min()
+        event_end = event_data.index.max()
+        discharge_window = q_df[(q_df['date'] >= event_start) & (q_df['date'] <= event_end)]
+        max_discharge_cfs = discharge_window['discharge_cfs'].max() if len(discharge_window) > 0 else None
+        discharge_cms = max_discharge_cfs * 0.0283168 if max_discharge_cfs is not None and max_discharge_cfs > 0 else None
 
         # Plot each product
         for prod_idx, product in enumerate(products):
