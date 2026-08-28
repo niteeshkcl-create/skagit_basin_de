@@ -12,7 +12,7 @@ import rioxarray
 
 warnings.filterwarnings('ignore')
 
-BASE_DIR = "/data0/hernanqd/plots_code/skagit_basin_de/multi_product_bulk_bias/exploring"
+BASE_DIR = "/data0/hernanqd/plots_code/skagit_basin_de/multi_product_bulk_bias"
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
 PROJECT_DIR = "/data0/hernanqd/plots_code/skagit_basin_de"
 HUC8_GEO = os.path.join(PROJECT_DIR, "data/GIS/SkagitSubBasin_HUC8.geojson")
@@ -32,6 +32,8 @@ def get_mask(gdf, lon, lat):
     return mask.sel(region=region_indices)
 
 def get_decade_folder(year: int) -> str:
+    if 2021 <= year <= 2024:
+        return "2021-2024"
     start_decade = (year // 10) * 10
     if start_decade == 1980 and year > 1980:
         return "1981-1990"
@@ -79,16 +81,6 @@ def load_daymet_from_netcdf(year):
     except Exception as e:
         print(f"  Error loading Daymet netCDF for {year}: {e}")
         return None
-
-def get_ornl_zarr(year):
-    if 1981 <= year <= 2011:
-        p = os.path.join(VAULT_DIR, "climate_sets/1981_2011_ORNL_data.zarr")
-        if os.path.exists(p): return p
-    p1 = os.path.join(VAULT_DIR, f"ornl/{year}_{year}_ref_DaymetV4_ORNL_data.zarr")
-    if os.path.exists(p1): return p1
-    p2 = os.path.join(VAULT_DIR, f"DaymetV4/{year}_{year}_ORNL_data.zarr")
-    if os.path.exists(p2): return p2
-    return None
 
 def calculate_basin_mean(da, mask_2d):
     data = da.values

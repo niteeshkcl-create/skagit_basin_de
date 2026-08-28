@@ -5,6 +5,9 @@ import xarray as xr
 import numpy as np
 import geopandas as gpd
 import regionmask
+import zipfile
+import tempfile
+import rioxarray
 
 # Configuration
 VAULT_DIR = "/data0/skagit_met/data_transfer/data"
@@ -20,12 +23,14 @@ HYDRO_Q_PATH = os.path.join(HYDRO_EXP_DATA_DIR, "usgs_12200500_discharge.rdb")
 
 # Specific event dates to plot
 SPECIFIC_DATES = [
+    '2021-11-16',
     '1995-12-02',
+    '1990-11-14',
     '2011-01-18',
     '2015-11-14',
     '2007-03-13',
-    '1995-11-26',
-    '2010-12-14',  
+    # '1995-11-26',
+    # '2010-12-14',
 ]
 
 # 11/16/21
@@ -102,6 +107,8 @@ def calculate_basin_mean(da, mask_2d):
 
 
 def get_decade_folder(year: int) -> str:
+    if 2021 <= year <= 2024:
+        return "2021-2024"
     start_decade = (year // 10) * 10
     if start_decade == 1980 and year > 1980:
         return "1981-1990"
@@ -110,6 +117,47 @@ def get_decade_folder(year: int) -> str:
     if start_decade % 10 == 0:
         return f"{start_decade+1}-{start_decade+10}"
     return f"{start_decade}-{(year//10)*10+9}"
+
+
+def load_prism_from_new_format(date, prism_root):
+    """Load PRISM data from new format (TIFF) zip file for a specific date"""
+    date_str = date.strftime('%Y%m%d')
+    year = date.year
+    decade_folder = get_decade_folder(year)
+    zip_path = os.path.join(prism_root, decade_folder, f"prism_ppt_us_25m_{date_str}.zip")
+
+    if not os.path.exists(zip_path):
+        return None
+
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                z.extractall(tmpdir)
+                for root, dirs, files in os.walk(tmpdir):
+                    for f in files:
+                        if f.endswith('.tif'):
+                            filepath = os.path.join(root, f)
+                            da = rioxarray.open_rasterio(filepath)
+                            return da.squeeze().copy(deep=True)
+    except Exception as e:
+        pass
+
+    return None
+
+
+def load_daymet_from_netcdf(year):
+    """Load Daymet data from netCDF file for a specific year"""
+    daymet_nc_path = os.path.join(VAULT_DIR, "daymet_new_hq", f"prcp_{year}_subset.nc")
+
+    if not os.path.exists(daymet_nc_path):
+        return None
+
+    try:
+        ds = xr.open_dataset(daymet_nc_path)
+        return ds
+    except Exception as e:
+        print(f"  Error loading Daymet netCDF for {year}: {e}")
+        return None
 
 
 def get_ornl_zarr(year):
@@ -130,7 +178,7 @@ def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daym
     """Extract 8-day precipitation window (T-2 to T+5) for an event"""
 
     window_dates = []
-    for i in range(-2, 6):
+    for i in range(-3, 6):
         window_dates.append(event_date + pd.Timedelta(days=i))
 
     year = event_date.year
@@ -152,11 +200,7 @@ def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daym
     except:
         pass
 
-    try:
-        sample_daymet = xr.open_zarr(os.path.join(VAULT_DIR, "DaymetV4/2019_2019_ORNL_data.zarr"))
-        masks_2d['Daymet'] = get_mask(gdf, sample_daymet.lon, sample_daymet.lat).any(dim='region')
-    except:
-        pass
+    # Daymet mask will be created dynamically in extraction (from actual data coordinates)
 
     try:
         sample_conus = xr.open_zarr(os.path.join(BASE_DIR, "data/weather_data/conus404_skagit_precip_daily_full.zarr"))
@@ -177,33 +221,34 @@ def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daym
     except:
         pass
 
-    # Extract PRISM
+    # Extract PRISM from new format (TIFF)
     if 'prism' in products_to_extract:
-        try:
-            dec = get_decade_folder(year)
-            prism_path_4k = os.path.join(VAULT_DIR, "PRISM", dec, f"{year}-01-01_{year}-12-31_daily_4km_PRISM_data.zarr")
-            prism_path_800 = os.path.join(VAULT_DIR, "prism_ppt_800m", f"{year}-01-01_{year}-12-31_daily_800m_PRISM_data.zarr")
-            prism_path = prism_path_4k if os.path.exists(prism_path_4k) else prism_path_800
-            if os.path.exists(prism_path):
-                ds = xr.open_zarr(prism_path, consolidated=False)
-                ds['time'] = pd.to_datetime(ds.time.values).normalize()
-                da = ds['ppt'].sel(time=window_dates, method='nearest')
-                if "800m" in prism_path:
-                    m_prism = get_mask(gdf, ds.lon, ds.lat).any(dim='region')
-                else:
-                    m_prism = masks_2d.get('PRISM')
-                if m_prism is not None:
-                    prism_daily = calculate_basin_mean(da, m_prism)
-                    prism_daily.index = prism_daily.index.normalize()
-                    prism_daily = prism_daily[~prism_daily.index.duplicated(keep='first')]
-                    for date in window_dates:
-                        normalized_date = date.normalize()
-                        if normalized_date in prism_daily.index:
-                            val = prism_daily[normalized_date]
-                            results[f'{date.strftime("%Y-%m-%d")}']['prism'] = float(val) if not isinstance(val, pd.Series) else float(val.iloc[0])
-                ds.close()
-        except Exception as e:
-            print(f"Error loading PRISM for {event_date.strftime('%Y-%m-%d')}: {e}")
+        prism_root = os.path.join(VAULT_DIR, "prism_new_hq")
+        prism_data = {}
+
+        for date in window_dates:
+            try:
+                da = load_prism_from_new_format(date, prism_root)
+                if da is None:
+                    continue
+                lon = da.x.values
+                lat = da.y.values
+                m_prism = get_mask(gdf, lon, lat).any(dim='region')
+                mean_val = calculate_basin_mean(da, m_prism)
+                prism_data[date.normalize()] = mean_val
+            except Exception as date_error:
+                pass
+
+        # Add extracted values to results
+        for date in window_dates:
+            normalized_date = date.normalize()
+            if normalized_date in prism_data:
+                results[f'{date.strftime("%Y-%m-%d")}']['prism'] = float(prism_data[normalized_date])
+
+        # Debug: Print what was found
+        prism_count = sum(1 for d in prism_data.values() if not np.isnan(d))
+        if prism_count > 0:
+            print(f"  ✓ PRISM: {prism_count}/{len(window_dates)} dates extracted")
 
     # Extract PNNL
     if 'pnnl' in products_to_extract and year <= 2020:
@@ -229,29 +274,30 @@ def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daym
         except Exception as e:
             print(f"Error loading PNNL for {event_date.strftime('%Y-%m-%d')}: {e}")
 
-    # Extract Daymet
+    # Extract Daymet (new format - netCDF files)
     if 'daymet' in products_to_extract:
         try:
-            daymet_path = get_ornl_zarr(year)
-            if daymet_path:
-                is_cons = (1981 <= year <= 2011)
-                ds = xr.open_zarr(daymet_path, consolidated=is_cons)
-                if 'day' in ds.dims:
-                    ds = ds.rename({'day': 'time'})
+            ds = load_daymet_from_netcdf(year)
+            if ds is not None:
                 ds['time'] = pd.to_datetime(ds.time.values).normalize()
-                var = 'prcp' if 'prcp' in ds.data_vars else 'ppt'
-                da = ds[var].sel(time=window_dates, method='nearest')
-                if 'Daymet' in masks_2d:
-                    daymet_daily = calculate_basin_mean(da, masks_2d['Daymet'])
-                    daymet_daily.index = daymet_daily.index.normalize()
-                    daymet_daily = daymet_daily[~daymet_daily.index.duplicated(keep='first')]
-                    for date in window_dates:
-                        normalized_date = date.normalize()
-                        if normalized_date in daymet_daily.index:
-                            val = daymet_daily[normalized_date]
-                            results[f'{date.strftime("%Y-%m-%d")}']['daymet'] = float(val) if not isinstance(val, pd.Series) else float(val.iloc[0])
-                if not is_cons:
-                    ds.close()
+                da = ds['prcp']
+
+                # Create Daymet mask dynamically if not cached
+                if 'Daymet' not in masks_2d:
+                    lon_2d = ds['lon'].values
+                    lat_2d = ds['lat'].values
+                    masks_2d['Daymet'] = get_mask(gdf, lon_2d, lat_2d).any(dim='region')
+
+                da_window = da.sel(time=window_dates, method='nearest')
+                daymet_daily = calculate_basin_mean(da_window, masks_2d['Daymet'])
+                daymet_daily.index = daymet_daily.index.normalize()
+                daymet_daily = daymet_daily[~daymet_daily.index.duplicated(keep='first')]
+                for date in window_dates:
+                    normalized_date = date.normalize()
+                    if normalized_date in daymet_daily.index:
+                        val = daymet_daily[normalized_date]
+                        results[f'{date.strftime("%Y-%m-%d")}']['daymet'] = float(val) if not isinstance(val, pd.Series) else float(val.iloc[0])
+                ds.close()
         except Exception as e:
             print(f"Error loading Daymet for {event_date.strftime('%Y-%m-%d')}: {e}")
 
@@ -371,7 +417,7 @@ def plot_specific_ar_events():
     ylim_max = max_cumsum * 1.05
 
     # Create plots
-    fig, axes = plt.subplots(3, 2, figsize=(14, 10))
+    fig, axes = plt.subplots(3, 2, figsize=(14, 11))
     axes = axes.flatten()
 
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b']
@@ -413,7 +459,7 @@ def plot_specific_ar_events():
         ax.grid(True, alpha=0.3)
         ax.tick_params(axis='x', rotation=45)
 
-    plt.suptitle('Cumulative Precipitation for Specific non-AR Events', fontsize=16, fontweight='bold')
+    plt.suptitle('Cumulative Precipitation during Top Discharge non-AR Events', fontsize=16, fontweight='bold')
     plt.tight_layout()
 
     output_path = os.path.join(OUTPUT_DIR, 'specific_non_ar_events_cumulative_precipitation.png')

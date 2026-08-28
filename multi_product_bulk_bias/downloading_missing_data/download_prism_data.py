@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Download PRISM precipitation data from 1981-2020 and organize into decade folders.
+Download PRISM precipitation data from 1981-2024 and organize into decade folders.
 Data source: https://data.prism.oregonstate.edu/time_series/us/an/4km/ppt/daily/
 """
 
@@ -16,11 +16,17 @@ BASE_URL = "https://data.prism.oregonstate.edu/time_series/us/an/4km/ppt/daily"
 OUTPUT_DIR = "/data0/skagit_met/data_transfer/data/prism_new_hq"
 
 # Define decade folders
+# ORIGINAL (1981-2020):
+# DECADE_MAPPING = {
+#     (1981, 1990): "1981-1990",
+#     (1991, 2000): "1991-2000",
+#     (2001, 2010): "2001-2010",
+#     (2011, 2020): "2011-2020",
+# }
+
+# For 2021-2024 data only:
 DECADE_MAPPING = {
-    (1981, 1990): "1981-1990",
-    (1991, 2000): "1991-2000",
-    (2001, 2010): "2001-2010",
-    (2011, 2020): "2011-2020",
+    (2021, 2024): "2021-2024",
 }
 
 def get_decade_folder(year):
@@ -38,9 +44,14 @@ def create_directories():
         print(f"✓ Directory ready: {folder_path}")
 
 def generate_all_dates():
-    """Generate all dates from 1981-01-01 to 2020-12-31, accounting for leap years"""
-    start_date = pd.Timestamp('1981-01-01')
-    end_date = pd.Timestamp('2020-12-31')
+    """Generate all dates from 2021-01-01 to 2024-12-31, accounting for leap years"""
+    # ORIGINAL (1981-01-01 to 2020-12-31):
+    # start_date = pd.Timestamp('1981-01-01')
+    # end_date = pd.Timestamp('2020-12-31')
+
+    # For 2021-2024 data:
+    start_date = pd.Timestamp('2021-01-01')
+    end_date = pd.Timestamp('2024-12-31')
     dates = pd.date_range(start=start_date, end=end_date, freq='D')
     return dates
 
@@ -77,7 +88,8 @@ def download_file(date, output_path, max_retries=3):
     return False
 
 def main():
-    print("PRISM Data Downloader (1981-2020)")
+    print("PRISM Data Downloader (2021-2024)")
+    # ORIGINAL: print("PRISM Data Downloader (1981-2020)")
     print("="*80)
 
     # Create directories
@@ -85,7 +97,8 @@ def main():
     create_directories()
 
     # Generate all dates
-    print("\nGenerating dates from 1981-01-01 to 2020-12-31...")
+    print("\nGenerating dates from 2021-01-01 to 2024-12-31...")
+    # ORIGINAL: print("\nGenerating dates from 1981-01-01 to 2020-12-31...")
     all_dates = generate_all_dates()
     print(f"Total dates to download: {len(all_dates)}")
 
