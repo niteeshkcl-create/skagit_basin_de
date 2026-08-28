@@ -39,25 +39,17 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # --- AR Event windows (exact dates from cumulative precipitation plot) ---
 
-# AR_EVENTS = [
-#     {"label": "November_1990_AR5",   "start": "1990-11-23", "end": "1990-11-25", "row_label": "Nov 23–25, 1990\n(AR5)"},
-#     {"label": "December_2010_AR3",  "start": "2010-12-11", "end": "2010-12-13", "row_label": "Dec 11–13, 2010\n(AR3)"},
-#     {"label": "January_1984_AR4",  "start": "1984-01-03", "end": "1984-01-5", "row_label": "Jan 3–5, 1984\n(AR4)"},
-#     {"label": "November_2017_AR4",  "start": "2017-11-21", "end": "2017-11-23", "row_label": "Nov 21–23, 2017\n(AR4)"},
-#     {"label": "November_1999_AR3",  "start": "1999-11-11", "end": "1999-11-13", "row_label": "Nov 11–13, 1999\n(AR3)"},
-#     {"label": "January_2011_AR2",  "start": "2011-01-15", "end": "2011-01-17", "row_label": "Jan 15–17, 2011\n(AR2)"}
-# ]
-
 AR_EVENTS = [
-    {"label": "November_1990_AR5",   "start": "1990-11-22", "end": "1990-11-24", "row_label": "Nov 22–24, 1990\n(AR5)"},
-    {"label": "November_1995_AR4",  "start": "1995-11-27", "end": "1995-11-29", "row_label": "Nov 27–29, 1995\n(AR4)"},
-    {"label": "November_1990_AR4",  "start": "1990-11-08", "end": "1990-11-10", "row_label": "Nov 8–10, 1990\n(AR4)"},
-    {"label": "November_2006_AR5",  "start": "2006-11-05", "end": "2006-11-07", "row_label": "Nov 5–7, 2006\n(AR5)"},
-    {"label": "October_2003_AR5",  "start": "2003-10-19", "end": "2003-10-21", "row_label": "Oct 19–21, 2003\n(AR5)"},
-    {"label": "November_2021_AR4",  "start": "2021-11-13", "end": "2021-11-15", "row_label": "Nov 13–15, 2021\n(AR4)"}
+    {"label": "November_2021_AR0", "start": "2021-11-14", "end": "2021-11-16", "row_label": "Nov 14–16, 2021\n(AR0)"},
+    {"label": "December_1995_AR0", "start": "1995-11-30", "end": "1995-12-02", "row_label": "Nov 30–Dec 2, 1995\n(AR0)"},
+    {"label": "November_1990_AR0", "start": "1990-11-12", "end": "1990-11-14", "row_label": "Nov 12–14, 1990\n(AR0)"},
+    {"label": "November_2011_AR0", "start": "2011-11-16", "end": "2011-11-18", "row_label": "Nov 16–18, 2011\n(AR0)"},
+    {"label": "November_2015_AR0", "start": "2015-11-12", "end": "2015-11-14", "row_label": "Nov 12–14, 2015\n(AR0)"},
+    {"label": "March_2007_AR0", "start": "2007-03-11", "end": "2007-03-13", "row_label": "Mar 11–13, 2007\n(AR0)"}
 ]
 
 PRODUCTS = ['PRISM', 'Daymet', 'PNNL', 'CONUS404', 'UCLA', 'GridMET'] #'ORNL (Daymet)', 'HRRR'
+BIAS_PRODUCTS = [p for p in PRODUCTS if p != 'PRISM']
 
 # Crop bounding box: Skagit domain
 BB = (-122.5, -120.5, 47.8, 49.5)  # lon_min, lon_max, lat_min, lat_max
@@ -266,7 +258,7 @@ def load_event_grids(event):
                 da_day = da_day.expand_dims(time=[d])
                 daily_das.append(da_day)
         if daily_das:
-            da = xr.concat(daily_das, dim='time').sum(dim='time', skipna=True)
+            da = xr.concat(daily_das, dim='time').sum(dim='time', skipna=False)
             grids['PRISM'] = da
             print(f"    PRISM OK ({len(daily_das)}/{len(date_range)} days)")
         else:
@@ -478,24 +470,48 @@ def main():
             print(f"  Regridding {prod} for {event['label']}...")
             event_regridded_grids[event['label']][prod] = regrid_to_reference(grids[prod], mask_2d)
 
-    # Dynamic vmax: 99.5th percentile across all non-NaN values in all products/events
-    print("\nCalculating dynamic colorbar limits...")
-    all_arrays = []
+    # Compute bias grids (product - PRISM, only where PRISM source data exists)
+    print("\nComputing bias grids (relative to PRISM)...")
+    event_bias_grids = {}
     for elabel in event_regridded_grids:
-        for prod in PRODUCTS:
-            g = event_regridded_grids[elabel][prod]
-            if g is not None:
-                v = g[~np.isnan(g)]
-                all_arrays.append(v)
-    all_vals = np.concatenate(all_arrays) if all_arrays else np.array([])
-    if len(all_vals):
-        vmax = max(float(np.ceil(np.quantile(all_vals, 0.995))), 1.0)
-    else:
-        vmax = 60.0
-    vmin = 0.0
-    print(f"Global color range: {vmin}–{vmax} mm/day")
+        event_bias_grids[elabel] = {}
+        prism_grid = event_regridded_grids[elabel]['PRISM']
+        prism_regridded_valid = ~np.isnan(prism_grid)
+        prism_source_coverage = event_regridded_grids[elabel].get('_prism_coverage')
 
-    # Plot grid: 5 rows × 8 columns
+        for prod in PRODUCTS:
+            if prod != 'PRISM':
+                prod_grid = event_regridded_grids[elabel][prod]
+                bias = np.where(
+                    prism_regridded_valid & ~np.isnan(prod_grid),
+                    prod_grid - prism_grid,
+                    np.nan
+                )
+                bias[~mask_2d] = np.nan
+                if prism_source_coverage is not None:
+                    bias = np.where(prism_source_coverage, bias, np.nan)
+                event_bias_grids[elabel][prod] = bias
+
+    # Dynamic bias limits: 99.5th percentile of absolute bias
+    print("\nCalculating dynamic bias colorbar limits...")
+    all_bias_arrays = []
+    for elabel in event_bias_grids:
+        for prod in PRODUCTS:
+            if prod != 'PRISM':
+                g = event_bias_grids[elabel][prod]
+                if g is not None:
+                    v = g[~np.isnan(g)]
+                    if len(v) > 0:
+                        all_bias_arrays.append(np.abs(v))
+    if all_bias_arrays:
+        all_bias_vals = np.concatenate(all_bias_arrays)
+        vmax_bias = float(np.ceil(np.quantile(all_bias_vals, 0.995)))
+    else:
+        vmax_bias = 50.0
+    vmin_bias = -vmax_bias
+    print(f"Bias color range: {vmin_bias}–{vmax_bias} mm")
+
+    # Plot grid: 6 rows × 5 columns (bias relative to PRISM)
     plt.rcParams.update({
         'font.size': 13,
         'font.family': 'sans-serif',
@@ -503,8 +519,8 @@ def main():
     })
 
     fig, axes = plt.subplots(
-        len(AR_EVENTS), len(PRODUCTS),
-        figsize=(17.5, 17.5),
+        len(AR_EVENTS), len(BIAS_PRODUCTS),
+        figsize=(15, 17.5),
         subplot_kw={"projection": ccrs.PlateCarree()},
         facecolor='#ffffff'
     )
@@ -512,29 +528,17 @@ def main():
     im = None
     for row_idx, event in enumerate(AR_EVENTS):
         elabel = event['label']
-        for col_idx, prod in enumerate(PRODUCTS):
+        for col_idx, prod in enumerate(BIAS_PRODUCTS):
             ax = axes[row_idx, col_idx]
-            grid = event_regridded_grids[elabel][prod]
+            grid = event_bias_grids[elabel][prod]
 
             if grid is not None and not np.all(np.isnan(grid)):
                 im = ax.pcolormesh(
                     ref_lon, ref_lat, grid,
                     transform=ccrs.PlateCarree(),
-                    cmap="Greens", vmin=vmin, vmax=vmax,
+                    cmap="RdBu_r", vmin=vmin_bias, vmax=vmax_bias,
                     shading='auto'
                 )
-
-                # Overlay SNOTEL precipitation points
-                snotel = event_snotel_data[elabel]
-                if snotel is not None:
-                    ax.scatter(
-                        snotel['lons'], snotel['lats'],
-                        c=snotel['vals'], cmap="Greens",
-                        vmin=vmin, vmax=vmax,
-                        edgecolors="black", linewidths=1.2,
-                        s=60, transform=ccrs.PlateCarree(),
-                        zorder=10
-                    )
             else:
                 # Grey placeholder if product missing
                 ax.set_facecolor('#dddddd')
@@ -559,15 +563,15 @@ def main():
 
         # Column titles on the first row
         if row_idx == 0:
-            for col_idx, prod in enumerate(PRODUCTS):
-                label = "ORNL (Daymet)" if prod == "ORNL" else prod
+            for col_idx, prod in enumerate(BIAS_PRODUCTS):
+                label = f"{prod} - PRISM"
                 axes[0, col_idx].set_title(label, fontsize=16, fontweight='bold', pad=12)
 
     # Colorbar at the bottom of the grid
     if im is not None:
         cbar_ax = fig.add_axes([0.30, 0.05, 0.40, 0.02])
         cbar = fig.colorbar(im, cax=cbar_ax, orientation='horizontal',
-                            label="Cumulative Precipitation (mm)")
+                            label="Bias relative to PRISM (mm)")
         cbar.ax.tick_params(labelsize=13)
 
     plt.subplots_adjust(left=0.08, right=0.98, top=0.88, bottom=0.10, wspace=0.05, hspace=0.08)
@@ -580,13 +584,13 @@ def main():
     # )
 
     plt.suptitle(
-        "Spatial Distribution of Precipitation during Atmospheric River Events\n"
-        "Multi-Product Comparison (Cumulative Precipitation)\n"
-        "(AR Event Day: End of Period)",
+        "Bias in Cumulative Precipitation during Non-Atmospheric River Events\n"
+        "Multi-Product Comparison (Bias relative to PRISM)\n"
+        "(Non-AR Event Day: End of Period)",
         fontsize=22, fontweight='bold', y=0.97
     )
 
-    out_png = os.path.join(OUT_DIR, "ar_events_cumulative_spatial_grid_3_days.png")
+    out_png = os.path.join(OUT_DIR, "non_ar_events_cumulative_spatial_bias_grid_3_days.png")
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"\nSaved combined comparison figure to: {out_png}")
