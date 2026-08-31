@@ -40,12 +40,12 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # --- AR Event windows (exact dates from cumulative precipitation plot) ---
 
 AR_EVENTS = [
-    {"label": "November_2021_AR0", "start": "2021-11-14", "end": "2021-11-16", "row_label": "Nov 14–16, 2021\n(AR0)"},
-    {"label": "December_1995_AR0", "start": "1995-11-30", "end": "1995-12-02", "row_label": "Nov 30–Dec 2, 1995\n(AR0)"},
-    {"label": "November_1990_AR0", "start": "1990-11-12", "end": "1990-11-14", "row_label": "Nov 12–14, 1990\n(AR0)"},
-    {"label": "November_2011_AR0", "start": "2011-11-16", "end": "2011-11-18", "row_label": "Nov 16–18, 2011\n(AR0)"},
-    {"label": "November_2015_AR0", "start": "2015-11-12", "end": "2015-11-14", "row_label": "Nov 12–14, 2015\n(AR0)"},
-    {"label": "March_2007_AR0", "start": "2007-03-11", "end": "2007-03-13", "row_label": "Mar 11–13, 2007\n(AR0)"}
+    {"label": "November_2021_AR0", "start": "2021-11-14", "end": "2021-11-21", "row_label": "Nov 14–21, 2021\n(AR0)"},
+    {"label": "December_1995_AR0", "start": "1995-11-30", "end": "1995-12-07", "row_label": "Nov 30–Dec 7, 1995\n(AR0)"},
+    {"label": "November_1990_AR0", "start": "1990-11-12", "end": "1990-11-19", "row_label": "Nov 12–19, 1990\n(AR0)"},
+    {"label": "November_2011_AR0", "start": "2011-11-16", "end": "2011-11-23", "row_label": "Nov 16–23, 2011\n(AR0)"},
+    {"label": "November_2015_AR0", "start": "2015-11-12", "end": "2015-11-19", "row_label": "Nov 12–19, 2015\n(AR0)"},
+    {"label": "March_2007_AR0", "start": "2007-03-11", "end": "2007-03-18", "row_label": "Mar 11–18, 2007\n(AR0)"}
 ]
 
 PRODUCTS = ['PRISM', 'Daymet', 'PNNL', 'CONUS404', 'UCLA', 'GridMET'] #'ORNL (Daymet)', 'HRRR'
@@ -426,18 +426,17 @@ def main():
         print(f"\nProcessing: {event['label']}")
         grids = load_event_grids(event)
 
-        # SNOTEL files were downloaded with end_date + 5 days, so adjust zarr path accordingly
-        end_extended = (pd.Timestamp(end) + pd.DateOffset(days=5)).strftime('%Y-%m-%d')
-        zarr_path = os.path.join(DATA_DIR, "weather_data", f"{start}_{end_extended}_SNOTEL_daily_data.zarr")
+        # Load SNOTEL data
+        zarr_path = os.path.join(DATA_DIR, "weather_data", f"{start}_{end}_SNOTEL_daily_data.zarr")
         if not os.path.exists(zarr_path):
-            print(f"  Downloading SNOTEL daily data for {start} to {end_extended}...")
+            print(f"  Downloading SNOTEL daily data for {start} to {end}...")
             import sys
             try:
                 subprocess.run([
                     sys.executable,
                     os.path.join(BASE_DIR, "scripts/snotel_downloader.py"),
                     "--startDate", start,
-                    "--endDate", end_extended,
+                    "--endDate", end,
                     "--geojson", os.path.join(BASE_DIR, "data/GIS/SkagitBoundary.json"),
                     "--frequency", "daily",
                     "--outputDir", os.path.join(BASE_DIR, "data/")
@@ -638,11 +637,11 @@ def main():
     plt.suptitle(
         "Bias in Cumulative Precipitation during Non-Atmospheric River Events\n"
         "Multi-Product Comparison (Bias relative to PRISM)\n"
-        "(Non-AR Event Day: End of Period)",
+        "(Non-AR Event Day: 2 days after period start)",
         fontsize=22, fontweight='bold', y=0.97
     )
 
-    out_png = os.path.join(OUT_DIR, "non_ar_events_cumulative_spatial_bias_grid_3_days.png")
+    out_png = os.path.join(OUT_DIR, "non_ar_events_cumulative_spatial_bias_grid_8_days.png")
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"\nSaved combined comparison figure to: {out_png}")

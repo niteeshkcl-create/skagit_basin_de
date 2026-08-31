@@ -39,13 +39,22 @@ os.makedirs(OUT_DIR, exist_ok=True)
 
 # --- AR Event windows (exact dates from cumulative precipitation plot) ---
 
+# AR_EVENTS = [
+#     {"label": "November_1990_AR5",   "start": "1990-11-23", "end": "1990-11-25", "row_label": "Nov 23–25, 1990\n(AR5)"},
+#     {"label": "December_2010_AR3",  "start": "2010-12-11", "end": "2010-12-13", "row_label": "Dec 11–13, 2010\n(AR3)"},
+#     {"label": "January_1984_AR4",  "start": "1984-01-03", "end": "1984-01-5", "row_label": "Jan 3–5, 1984\n(AR4)"},
+#     {"label": "November_2017_AR4",  "start": "2017-11-21", "end": "2017-11-23", "row_label": "Nov 21–23, 2017\n(AR4)"},
+#     {"label": "November_1999_AR3",  "start": "1999-11-11", "end": "1999-11-13", "row_label": "Nov 11–13, 1999\n(AR3)"},
+#     {"label": "January_2011_AR2",  "start": "2011-01-15", "end": "2011-01-17", "row_label": "Jan 15–17, 2011\n(AR2)"}
+# ]
+
 AR_EVENTS = [
-    {"label": "November_2021_AR0", "start": "2021-11-14", "end": "2021-11-16", "row_label": "Nov 14–16, 2021\n(AR0)"},
-    {"label": "December_1995_AR0", "start": "1995-11-30", "end": "1995-12-02", "row_label": "Nov 30–Dec 2, 1995\n(AR0)"},
-    {"label": "November_1990_AR0", "start": "1990-11-12", "end": "1990-11-14", "row_label": "Nov 12–14, 1990\n(AR0)"},
-    {"label": "November_2011_AR0", "start": "2011-11-16", "end": "2011-11-18", "row_label": "Nov 16–18, 2011\n(AR0)"},
-    {"label": "November_2015_AR0", "start": "2015-11-12", "end": "2015-11-14", "row_label": "Nov 12–14, 2015\n(AR0)"},
-    {"label": "March_2007_AR0", "start": "2007-03-11", "end": "2007-03-13", "row_label": "Mar 11–13, 2007\n(AR0)"}
+    {"label": "November_1990_AR5",   "start": "1990-11-22", "end": "1990-11-29", "row_label": "Nov 22–29, 1990\n(AR5)"},
+    {"label": "November_1995_AR4",  "start": "1995-11-27", "end": "1995-12-04", "row_label": "Nov 27–Dec 4, 1995\n(AR4)"},
+    {"label": "November_1990_AR4",  "start": "1990-11-08", "end": "1990-11-15", "row_label": "Nov 8–15, 1990\n(AR4)"},
+    {"label": "November_2006_AR5",  "start": "2006-11-05", "end": "2006-11-12", "row_label": "Nov 5–12, 2006\n(AR5)"},
+    {"label": "October_2003_AR5",  "start": "2003-10-19", "end": "2003-10-26", "row_label": "Oct 19–26, 2003\n(AR5)"},
+    {"label": "November_2021_AR4",  "start": "2021-11-13", "end": "2021-11-20", "row_label": "Nov 13–20, 2021\n(AR4)"}
 ]
 
 PRODUCTS = ['PRISM', 'Daymet', 'PNNL', 'CONUS404', 'UCLA', 'GridMET'] #'ORNL (Daymet)', 'HRRR'
@@ -426,18 +435,17 @@ def main():
         print(f"\nProcessing: {event['label']}")
         grids = load_event_grids(event)
 
-        # SNOTEL files were downloaded with end_date + 5 days, so adjust zarr path accordingly
-        end_extended = (pd.Timestamp(end) + pd.DateOffset(days=5)).strftime('%Y-%m-%d')
-        zarr_path = os.path.join(DATA_DIR, "weather_data", f"{start}_{end_extended}_SNOTEL_daily_data.zarr")
+        # Load SNOTEL data
+        zarr_path = os.path.join(DATA_DIR, "weather_data", f"{start}_{end}_SNOTEL_daily_data.zarr")
         if not os.path.exists(zarr_path):
-            print(f"  Downloading SNOTEL daily data for {start} to {end_extended}...")
+            print(f"  Downloading SNOTEL daily data for {start} to {end}...")
             import sys
             try:
                 subprocess.run([
                     sys.executable,
                     os.path.join(BASE_DIR, "scripts/snotel_downloader.py"),
                     "--startDate", start,
-                    "--endDate", end_extended,
+                    "--endDate", end,
                     "--geojson", os.path.join(BASE_DIR, "data/GIS/SkagitBoundary.json"),
                     "--frequency", "daily",
                     "--outputDir", os.path.join(BASE_DIR, "data/")
@@ -636,13 +644,13 @@ def main():
     # )
 
     plt.suptitle(
-        "Bias in Cumulative Precipitation during Non-Atmospheric River Events\n"
+        "Bias in Cumulative Precipitation during Atmospheric River Events\n"
         "Multi-Product Comparison (Bias relative to PRISM)\n"
-        "(Non-AR Event Day: End of Period)",
+        "(AR Event Day: 2 days after period start)",
         fontsize=22, fontweight='bold', y=0.97
     )
 
-    out_png = os.path.join(OUT_DIR, "non_ar_events_cumulative_spatial_bias_grid_3_days.png")
+    out_png = os.path.join(OUT_DIR, "ar_events_cumulative_spatial_bias_grid_8_days.png")
     plt.savefig(out_png, dpi=300, bbox_inches='tight')
     plt.close()
     print(f"\nSaved combined comparison figure to: {out_png}")

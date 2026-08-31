@@ -479,6 +479,45 @@ def main():
             print(f"  Regridding {prod} for {event['label']}...")
             event_regridded_grids[event['label']][prod] = regrid_to_reference(grids[prod], mask_2d)
 
+    # Compute PRISM values at SNOTEL station locations for bias calculation
+    print("\nComputing PRISM values at SNOTEL stations...")
+    event_snotel_prism = {}
+    for event in AR_EVENTS:
+        elabel = event['label']
+        snotel = event_snotel_data[elabel]
+        if snotel is not None:
+            prism_grid = event_regridded_grids[elabel]['PRISM']
+            if prism_grid is not None and not np.all(np.isnan(prism_grid)):
+                pts = np.column_stack((ref_lon.flatten(), ref_lat.flatten()))
+                prism_vals_flat = prism_grid.flatten()
+                ok = ~np.isnan(prism_vals_flat)
+                if ok.any():
+                    prism_at_stations = griddata(
+                        pts[ok], prism_vals_flat[ok],
+                        np.column_stack((snotel['lons'], snotel['lats'])),
+                        method='linear'
+                    )
+                    event_snotel_prism[elabel] = prism_at_stations
+                else:
+                    event_snotel_prism[elabel] = None
+            else:
+                event_snotel_prism[elabel] = None
+        else:
+            event_snotel_prism[elabel] = None
+
+    # Compute SNOTEL bias (SNOTEL - PRISM)
+    print("Computing SNOTEL station bias...")
+    event_snotel_bias = {}
+    for event in AR_EVENTS:
+        elabel = event['label']
+        snotel = event_snotel_data[elabel]
+        prism_at_stn = event_snotel_prism[elabel]
+        if snotel is not None and prism_at_stn is not None:
+            bias = snotel['vals'] - prism_at_stn
+            event_snotel_bias[elabel] = bias
+        else:
+            event_snotel_bias[elabel] = None
+
     # Compute bias grids (product - PRISM, only where PRISM source data exists)
     print("\nComputing bias grids (relative to PRISM)...")
     event_bias_grids = {}
@@ -548,6 +587,19 @@ def main():
                     cmap="RdBu_r", vmin=vmin_bias, vmax=vmax_bias,
                     shading='auto'
                 )
+
+                # Overlay SNOTEL bias at station locations
+                snotel = event_snotel_data[elabel]
+                snotel_bias = event_snotel_bias[elabel]
+                if snotel is not None and snotel_bias is not None:
+                    ax.scatter(
+                        snotel['lons'], snotel['lats'],
+                        c=snotel_bias, cmap="RdBu_r",
+                        vmin=vmin_bias, vmax=vmax_bias,
+                        edgecolors="black", linewidths=1.2,
+                        s=60, transform=ccrs.PlateCarree(),
+                        zorder=10
+                    )
             else:
                 # Grey placeholder if product missing
                 ax.set_facecolor('#dddddd')
