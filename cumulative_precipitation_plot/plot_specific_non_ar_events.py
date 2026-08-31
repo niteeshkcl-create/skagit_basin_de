@@ -94,6 +94,8 @@ def calculate_basin_mean(da, mask_2d):
         time_coord = da.time.values if 'time' in da.coords else range(time_steps)
         return pd.Series(mean_vals, index=pd.to_datetime(time_coord))
     elif data.ndim == 2:
+        data = data.astype(float)
+        data[data < 0] = np.nan
         data_flat = data.flatten()
         mask_flat = mask.flatten()
         mask_idx = mask_flat > 0
