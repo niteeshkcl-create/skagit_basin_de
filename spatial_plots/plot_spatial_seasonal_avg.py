@@ -1,3 +1,15 @@
+"""Generate spatial maps of seasonal average precipitation and biases for Skagit Basin.
+
+Extracts seasonal average precipitation (Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec) from
+multiple weather datasets (PRISM, Daymet, PNNL, CONUS404, UCLA, GridMET) for years
+1981–2019. Regrids all products to a common PRISM 4km reference grid, computes
+multi-year averages, and calculates biases relative to PRISM baseline. Generates
+two publication-quality maps: one showing raw seasonal average values for each
+product, and one showing product-minus-PRISM biases.
+
+Outputs two high-resolution PNG figures to spatial_plots/plots/plot_spatial_seasonal_avg_prism/
+"""
+
 import os
 import numpy as np
 import xarray as xr

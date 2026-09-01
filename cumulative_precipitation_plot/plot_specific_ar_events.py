@@ -1,3 +1,16 @@
+"""
+Extract and visualize cumulative precipitation for specific atmospheric river events.
+
+This module aggregates precipitation data from multiple weather products (PRISM, PNNL,
+Daymet, CONUS404, UCLA, GridMET) over the Skagit Basin and creates comparative plots
+showing cumulative precipitation during high-impact AR events. Each plot includes peak
+discharge measurements from USGS gauges and AR scale classifications.
+
+Main functions:
+  extract_event_window: Extract precipitation window for a specific event across all products
+  plot_specific_ar_events: Generate cumulative precipitation comparison plots for selected events
+"""
+
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -24,37 +37,14 @@ HYDRO_Q_PATH = os.path.join(HYDRO_EXP_DATA_DIR, "usgs_12200500_discharge.rdb")
 # Specific event dates to plot
 # Can be a string date or a dict with 'event_date', 'start_date', 'end_date' for custom ranges
 SPECIFIC_DATES = [
-    # '2003-10-29',
-    # '2006-11-04',
-    # '2021-11-15',
-    # '1990-11-25',
-    # '2017-11-23',
-    # '2010-12-13',
     '1990-11-24',
     "1995-11-29",
     '1990-11-10',
     '2006-11-07',
-    # '2003-10-21',
     {'event_date': '2003-10-21', 'start_date': '2003-10-14', 'end_date': '2003-10-28'},  # custom range
     '2021-11-15',
-    # '2011-01-17',
-    # '1995-11-26'
 ]
 
-# 11/25/90
-# 12/12/25
-# 12/11/25
-# 11/24/90
-# 11/15/21
-# 12/13/10
-# 12/13/25
-# 1/5/84
-# 12/17/25
-# 11/23/17
-# 11/13/99
-# 1/17/11
-# 11/14/99
-# 3/25/07
 
 def load_prism_from_new_format(date, prism_root):
     """Load PRISM data from new format (TIFF) zip file for a specific date"""

@@ -1,3 +1,10 @@
+"""Generate an integrated daily dataset combining hydrology and atmospheric river event data.
+
+Creates a timeline-based dataset (1980-2025) by merging USGS discharge/gage height data
+with atmospheric river event classifications from three monitoring stations (47.5N_124.5W,
+48.0N_124.5W, 48.5N_124.5W). Outputs a CSV with daily records suitable for bias analysis.
+"""
+
 import os
 import pandas as pd
 import numpy as np

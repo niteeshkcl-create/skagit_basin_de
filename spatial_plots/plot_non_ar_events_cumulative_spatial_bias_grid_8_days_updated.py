@@ -1,11 +1,12 @@
-"""
-plot_ar_events_cumulative_spatial_grid_3_days.py
-------------------------------
-Generates a single 5 rows x 8 columns grid of spatial multi-product precipitation maps,
-where each row corresponds to one of the 5 AR events and each column is a dataset.
-This matches the layout of `may 23/spatial_seasonal_avg_products.png` but for the
-event-averaged daily precipitation.
+"""Generate spatial bias maps for non-AR events across weather products (8-day windows).
 
+Extracts 8-day cumulative precipitation (T-2 to T+5) for 6 selected non-AR precipitation
+events (AR0 classification) from multiple weather datasets (PRISM, Daymet, PNNL,
+CONUS404, UCLA, GridMET). Regrids all products to the PRISM 4km reference grid,
+computes biases relative to PRISM baseline, and generates a 6 × 5 grid visualization
+where each row represents a non-AR event and each column shows the bias for one product.
+
+Outputs one high-resolution PNG figure to spatial_plots/plots/
 """
 
 import os

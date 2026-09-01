@@ -1,3 +1,10 @@
+"""Extract and plot cumulative precipitation for specific non-AR events in the Skagit Basin.
+
+Loads precipitation data from multiple sources (PRISM, PNNL, Daymet, CONUS404, UCLA, GridMET),
+computes basin-averaged values for an 8-day window around each event date (T-3 to T+5),
+and generates comparison plots showing cumulative precipitation curves overlaid with discharge data.
+"""
+
 import os
 import pandas as pd
 import matplotlib.pyplot as plt

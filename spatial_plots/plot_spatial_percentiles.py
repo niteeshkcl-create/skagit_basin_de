@@ -1,3 +1,15 @@
+"""Generate spatial maps of precipitation percentiles and biases for Skagit Basin.
+
+Extracts daily precipitation percentiles (P95, P99) from multiple weather datasets
+(PRISM, Daymet, PNNL, CONUS404, UCLA, GridMET) for years 1981–2019. Regrids all
+products to a common PRISM 4km reference grid, computes multi-year averages, and
+calculates biases relative to PRISM baseline. Generates two publication-quality
+maps: one showing raw percentile values for each product, and one showing
+product-minus-PRISM biases.
+
+Outputs two high-resolution PNG figures to spatial_plots/plots/plot_spatial_percentiles/
+"""
+
 import os
 import numpy as np
 import xarray as xr

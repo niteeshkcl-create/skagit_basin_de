@@ -1,3 +1,19 @@
+"""Multi-product bulk precipitation bias analysis for Skagit Basin.
+
+Loads precipitation data from multiple weather datasets (PRISM, PNNL, Daymet,
+CONUS404, UCLA, GridMET, HRRR, and ORNL) over the Skagit Basin region.
+For each precipitation event date, computes 3-day window totals and maximums
+(spanning days T-2, T-1, T) across all products. Merges results back into
+the bulk bias CSV for downstream bias analysis.
+
+Datasets are loaded from:
+- /data0/skagit_met/data_transfer/data (VAULT_DIR)
+- /data0/hernanqd/plots_code/skagit_basin_de (PROJECT_DIR)
+
+Output is saved to outputs/3_multi_product_bulk_bias_data.csv with columns for
+each dataset's 3-day totals and maximums.
+"""
+
 import os
 import pandas as pd
 import xarray as xr

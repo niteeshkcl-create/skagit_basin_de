@@ -1,3 +1,10 @@
+"""Aggregate AR scales across monitoring stations and apply balanced sampling strategy.
+
+Loads the integrated daily dataset, computes maximum AR scale across three stations,
+then creates a balanced analysis subset: all AR events (scale 1-5) plus a random sample
+of 2000 non-AR days (scale 0) for bias analysis between precipitation products.
+"""
+
 import os
 import pandas as pd
 import xarray as xr
