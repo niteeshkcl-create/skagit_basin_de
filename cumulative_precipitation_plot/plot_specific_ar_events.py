@@ -396,6 +396,10 @@ def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daym
                         if normalized_date in conus_daily.index:
                             val = conus_daily[normalized_date]
                             results[f'{date.strftime("%Y-%m-%d")}']['conus'] = float(val) if not isinstance(val, pd.Series) else float(val.iloc[0])
+                    if event_date.strftime('%Y-%m-%d') in ['1995-11-29', '1990-11-10', '2021-11-15']:
+                        print(f"  [DEBUG-DAILY] {event_date.strftime('%Y-%m-%d')} CONUS:")
+                        print(f"    Daily values: {dict(conus_daily)}")
+                        print(f"    Cumulative: {dict(conus_daily.cumsum())}")
                 ds.close()
         except Exception as e:
             print(f"Error loading CONUS404 for {event_date.strftime('%Y-%m-%d')}: {e}")
@@ -463,6 +467,23 @@ def extract_event_window(event_date, products_to_extract=['prism', 'pnnl', 'daym
     return pd.DataFrame(results).T
 
 
+def save_timeseries_to_csv(all_event_data, output_dir):
+    """Save all cumulative precipitation timeseries to CSV files."""
+    os.makedirs(output_dir, exist_ok=True)
+
+    for event_date, event_df in all_event_data.items():
+        event_str = event_date.strftime('%Y%m%d')
+        csv_path = os.path.join(output_dir, f'cumulative_precip_{event_str}.csv')
+
+        # Compute cumulative sum for each product
+        cumul_df = event_df.cumsum()
+        cumul_df.index.name = 'datetime'
+        cumul_df = cumul_df.reset_index()
+
+        cumul_df.to_csv(csv_path, index=False)
+        print(f"  Saved cumulative data: {csv_path}")
+
+
 def plot_specific_ar_events():
     """Extract and plot specific AR events"""
     print("Loading events data...")
@@ -506,6 +527,11 @@ def plot_specific_ar_events():
                     print(f"    PRISM data: {window_df[product].values}")
 
     ylim_max = max_cumsum * 1.05
+
+    # Save timeseries data to CSV files
+    print("\nSaving timeseries data to CSV files...")
+    csv_output_dir = os.path.join(OUTPUT_DIR, 'timeseries_data')
+    save_timeseries_to_csv(all_event_data, csv_output_dir)
 
     # Create plots
     fig, axes = plt.subplots(3, 2, figsize=(14, 11))
