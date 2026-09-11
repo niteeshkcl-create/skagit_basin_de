@@ -24,11 +24,15 @@ ucla_coords_file = Path("/data0/hernanqd/instance_2021_data/preparing_datasets/U
 OUTPUT_DIR = Path(BASE_DIR) / "houly_timeseries_plots/comparing_snotel_sations/plots_snotel_comparison"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-# Event date ranges to process
+# Event date ranges to process (date_start_ucla, date_start, date_end, event_date, ar_category)
 DATE_RANGES = [
-    {'event_date': '1990-11-24', 'start_date': datetime(1990, 11, 21, 0, 0, 0), 'end_date': datetime(1990, 11, 29, 23, 0, 0)},
+    (datetime(1990, 11, 20, 23, 0, 0), datetime(1990, 11, 21, 0, 0, 0), datetime(1990, 11, 29, 23, 0, 0), "1990-11-24", "5.0"),
+    # (datetime(1995, 11, 25, 23, 0, 0), datetime(1995, 11, 26, 0, 0, 0), datetime(1995, 12, 4, 23, 0, 0), "1995-11-29", "4.0"),
+    # (datetime(1990, 11, 6, 23, 0, 0), datetime(1990, 11, 7, 0, 0, 0), datetime(1990, 11, 15, 23, 0, 0), "1990-11-10", "4.0"),
+    # (datetime(2006, 11, 3, 23, 0, 0), datetime(2006, 11, 4, 0, 0, 0), datetime(2006, 11, 12, 23, 0, 0), "2006-11-07", "5.0"),
+    # (datetime(2003, 10, 13, 23, 0, 0), datetime(2003, 10, 14, 0, 0, 0), datetime(2003, 10, 28, 23, 0, 0), "2003-10-21", "5.0"),
+    # (datetime(2021, 11, 12, 23, 0, 0), datetime(2021, 11, 13, 0, 0, 0), datetime(2021, 11, 20, 23, 0, 0), "2021-11-15", "4.0"),
 ]
-
 
 def load_snotel_data_with_coords(start_date, end_date):
     """Load SNOTEL data and extract station coordinates."""
@@ -226,7 +230,7 @@ def extract_ucla_at_point(date_start, date_end, lat, lon):
 def plot_station_comparison(station_idx, station_info, snotel_times, snotel_precip_col,
                             conus_precip, conus_times,
                             ucla_precip, ucla_times,
-                            event_date):
+                            event_date, ar_category):
     """Create comparison plot for a single SNOTEL station with cumulative precipitation."""
     fig, ax = plt.subplots(figsize=(14, 6))
 
@@ -258,7 +262,7 @@ def plot_station_comparison(station_idx, station_info, snotel_times, snotel_prec
     lon = station_info['lon']
     ax.set_xlabel('Time', fontsize=11, fontweight='bold')
     ax.set_ylabel('Cumulative Precipitation (mm)', fontsize=11, fontweight='bold')
-    ax.set_title(f'Cumulative Precipitation Comparison - {site_name}\n{station_info["site_id"]} ({lat:.4f}, {lon:.4f}) | {event_date}',
+    ax.set_title(f'Cumulative Precipitation Comparison - {site_name}\n{station_info["site_id"]} ({lat:.4f}, {lon:.4f}) | {event_date} (AR={ar_category})',
                  fontsize=12, fontweight='bold')
     ax.grid(True, alpha=0.3, linestyle='--')
     ax.legend(fontsize=10, loc='upper left')
@@ -280,13 +284,9 @@ def main():
     print("=" * 80)
 
     # Process each event
-    for event_info in DATE_RANGES:
-        event_date = event_info['event_date']
-        start_date = event_info['start_date']
-        end_date = event_info['end_date']
-
+    for idx, (date_start_ucla, start_date, end_date, event_date, ar_category) in enumerate(DATE_RANGES, 1):
         print(f"\n{'=' * 80}")
-        print(f"Event: {event_date} ({start_date.date()} to {end_date.date()})")
+        print(f"Event {idx}/{len(DATE_RANGES)}: {event_date} (AR={ar_category}) ({start_date.date()} to {end_date.date()})")
         print(f"{'=' * 80}")
 
         # Load SNOTEL data
@@ -327,7 +327,7 @@ def main():
             plot_station_comparison(station_idx, station_info, snotel_times, snotel_precip_col,
                                   conus_precip, conus_times,
                                   ucla_precip, ucla_times,
-                                  event_date)
+                                  event_date, ar_category)
 
     print("\n" + "=" * 80)
     print("COMPLETE!")
